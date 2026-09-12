@@ -2481,6 +2481,247 @@
       "expect": {
         "x": "-49.04036610"
       }
+    },
+    {
+      "id": "M-001",
+      "category": "M-Audit-v101",
+      "description": "BUG: STO -> EEX raised a fake Error 0 (EEX is not a valid STO target, but a real key)",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D4",
+        "D2",
+        "STO",
+        "EEX"
+      ],
+      "expect": {
+        "x": "42",
+        "error": null
+      }
+    },
+    {
+      "id": "M-002",
+      "category": "M-Audit-v101",
+      "description": "BUG: RCL -> EEX raised a fake Error 0, same class as M-001",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D9",
+        "RCL",
+        "EEX"
+      ],
+      "expect": {
+        "x": "9",
+        "error": null
+      }
+    },
+    {
+      "id": "M-003",
+      "category": "M-Audit-v101",
+      "description": "BUG (root cause): STO <digit> left the PRE-STO number's digit-entry buffer open -- typing 10, STO 5, then 7 showed 107, not 7",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "STO",
+        "D5",
+        "D7"
+      ],
+      "expect": {
+        "x": "7"
+      }
+    },
+    {
+      "id": "M-004",
+      "category": "M-Audit-v101",
+      "description": "BUG (same root cause): STO . <digit> (dot register) also leaked the pre-STO number into the next typed digit",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "STO",
+        "DOT",
+        "D5",
+        "D7"
+      ],
+      "expect": {
+        "x": "7"
+      }
+    },
+    {
+      "id": "M-005",
+      "category": "M-Audit-v101",
+      "description": "BUG (same root cause): STO <op> <digit> (register arithmetic on a valid R0-R4 register) also leaked",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "STO",
+        "ADD",
+        "D0",
+        "D7"
+      ],
+      "expect": {
+        "x": "7"
+      }
+    },
+    {
+      "id": "M-006",
+      "category": "M-Audit-v101",
+      "description": "BUG (same root cause): f <digit> (FIX n) left the pre-f number's entry open for the next typed digit",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "F",
+        "D2",
+        "D7"
+      ],
+      "expect": {
+        "x": "7",
+        "display": "7.00"
+      }
+    },
+    {
+      "id": "M-007",
+      "category": "M-Audit-v101",
+      "description": "BUG (same root cause): f . (SCI mode) left the pre-f number's entry open for the next typed digit",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "F",
+        "DOT",
+        "D7"
+      ],
+      "expect": {
+        "x": "7"
+      }
+    },
+    {
+      "id": "M-008",
+      "category": "M-Audit-v101",
+      "description": "regression: STO into R0-R4 arithmetic still works correctly end to end after the fix (10 STO+5, R0 5 STO+0 -> R0=15)",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "STO",
+        "D0",
+        "D5",
+        "STO",
+        "ADD",
+        "D0",
+        "CLX",
+        "RCL",
+        "D0"
+      ],
+      "expect": {
+        "x": "15"
+      }
+    },
+    {
+      "id": "M-009",
+      "category": "M-Audit-v101",
+      "description": "regression: STO . / RCL . dot-register round trip still works after the fix",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D7",
+        "STO",
+        "DOT",
+        "D2",
+        "CLX",
+        "RCL",
+        "DOT",
+        "D2"
+      ],
+      "expect": {
+        "x": "7"
+      }
+    },
+    {
+      "id": "M-010",
+      "category": "M-Audit-v101",
+      "description": "regression: STO-arithmetic on a register outside R0-R4 still correctly raises Error 4 (not silently accepted, not a false Error 0)",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "STO",
+        "ADD",
+        "D5"
+      ],
+      "expect": {
+        "error": 4
+      }
+    },
+    {
+      "id": "M-011",
+      "category": "M-Audit-v101",
+      "description": "BUG class, prefix + real key with no valid target: g R-down (GTO) -> EEX must not raise a fake error",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "G",
+        "RDOWN",
+        "EEX"
+      ],
+      "expect": {
+        "error": null
+      }
+    },
+    {
+      "id": "M-012",
+      "category": "M-Audit-v101",
+      "description": "regression: after STO's target key raises Error 4, the error clears on the next key WITHOUT acting, then the following key types a fresh number (no leaked digits from before the error)",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D0",
+        "STO",
+        "ADD",
+        "D5",
+        "D7",
+        "D7"
+      ],
+      "expect": {
+        "x": "7"
+      }
+    },
+    {
+      "id": "M-013",
+      "category": "M-Audit-v101",
+      "description": "regression: g-shift routes (e.g. g n = 12x) still terminate entry and compute correctly after the centralized fix",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D5",
+        "G",
+        "N"
+      ],
+      "expect": {
+        "x": "60",
+        "fin_n": "60"
+      }
+    },
+    {
+      "id": "M-014",
+      "category": "M-Audit-v101",
+      "description": "regression: f-shift one-shot routes (f PMT = RND) still terminate entry and round correctly after the centralized fix",
+      "source": "2026-09-12 v1.0.1 audit (STO/RCL/F/G stale digit-entry root cause)",
+      "keys": [
+        "D1",
+        "D4",
+        "DOT",
+        "D8",
+        "D7",
+        "D4",
+        "D5",
+        "D6",
+        "D3",
+        "D2",
+        "D0",
+        "F",
+        "PMT"
+      ],
+      "expect": {
+        "x": "14.87"
+      }
     }
   ]
 }

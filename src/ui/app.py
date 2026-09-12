@@ -45,7 +45,21 @@ GAP = 2              # px between adjacent keys
 BRACKET_H = 14       # px for a BOND/DEPRECIATION/CLEAR bracket row
 PANEL_PAD = 8        # px padding inside the dark keyboard panel
 CASE_PAD = 12        # px cream margin around the whole instrument
-LCD_W, LCD_H = 550, 80
+# 2026-09-12 v1.0.1: LCD box re-measured directly off the reference photo --
+# the previous 550x80 at centered position was NOT measured, it was a rough
+# guess. Real pixel measurement (hp12c.png, full-res): the cream case at the
+# LCD's row spans x=[20,579] (width 559), the glass spans x=[110,389]
+# (width 280, height 55, rows 28-82) -- i.e. the glass is 50.1% of the case
+# width, starts 16.1% of the case width from its left edge (NOT centered:
+# 90px left margin vs 190px right margin), and its height is 9.84% of the
+# case width. Scaled to this app's own case content width (696px, i.e.
+# self.case's 720px minus its 2*CASE_PAD): glass width 348, glass height 69,
+# left offset 112. The photo's LCD itself is powered off (flat glass, zero
+# contrast variation even at 4x-boosted contrast) so no digit segment can be
+# pixel-measured from it -- segment color/spacing below are a legibility
+# correction, not a photo measurement, and are called out as such.
+LCD_W, LCD_H = 348, 69
+LCD_LEFT_OFFSET = 112
 
 # ---------------------------------------------------------- colors (measured) -
 CASE_BG = "#e6ddc6"        # cream body -- sampled (230,221,198)
@@ -59,8 +73,15 @@ BLUE = "#00aff0"           # blue label text -- sampled (0,175,240)
 F_KEY_BG = "#e27b30"       # "f" key fill -- sampled (226,123,48)
 G_KEY_BG = "#00aff0"       # "g" key fill -- sampled (0,175,240)
 LCD_BG = "#979980"         # LCD glass -- sampled (151,153,128)
-LCD_ON = "#20241a"
-LCD_OFF = "#84876f"
+# 2026-09-12 v1.0.1: the reference photo's display is powered off (flat glass,
+# no segments at any contrast boost -- see the LCD_W comment above), so these
+# two colors are NOT a photo measurement. They are a legibility fix for the
+# complaint that every segment read as "similar gray": LCD_ON is now much
+# darker/near-black (real transmissive LCD segments read almost black against
+# their glass, not mid-gray) and LCD_OFF sits much closer to LCD_BG itself
+# (a bare ghost, not a second visible tone).
+LCD_ON = "#12140d"
+LCD_OFF = "#8b8e76"
 MOLDING_BG = "#4b4b4d"     # bezel band between the cream case and the black
                            # panel -- sampled (75,75,77), distinct from both
 PINSTRIPE = "#cbbfa0"      # thin cream accent line inset in that bezel -- sampled ~(205,195,165)
@@ -172,18 +193,26 @@ class App:
     def _build_display(self, parent) -> None:
         frame = tk.Frame(parent, bg=CASE_BG)
         frame.pack(fill="x", pady=(0, 8))
+        # Measured off-centre: the reference's glass sits 112px from the
+        # case's left edge with 236px of cream to its right, not centered.
         self.canvas = tk.Canvas(frame, width=LCD_W, height=LCD_H, bg=LCD_BG,
                                  highlightthickness=2, highlightbackground="#4a4636")
-        self.canvas.pack()
+        self.canvas.pack(anchor="w", padx=(LCD_LEFT_OFFSET, 0))
         self.annunciators = tk.Label(frame, text="", bg=CASE_BG, fg=GOLD, font=("Segoe UI", 8, "bold"))
-        self.annunciators.pack(anchor="w")
+        self.annunciators.pack(anchor="w", padx=(LCD_LEFT_OFFSET, 0))
 
     def _render_display(self) -> None:
         self.canvas.delete("all")
         text = self.engine.display_text()
-        digit_w, digit_h, gap = 20, 38, 5
+        # Digit box re-tuned to the resized LCD: height is ~68% of the glass
+        # (real LCD digits nearly fill the display band), width:height ~0.51
+        # (matches common 7-segment calculator digit proportions), and the
+        # inter-digit gap is cut from 25% to 12% of digit width -- the old
+        # 5px gap on a 20px digit read as loose "separate drawings", not one
+        # number.
+        digit_w, digit_h, gap = 24, 47, 3
         total_w = sevenseg.measure(text, digit_w, gap)
-        x = max(8, LCD_W - 12 - total_w)
+        x = max(6, LCD_W - 10 - total_w)
         sevenseg.draw_string(self.canvas, x, (LCD_H - digit_h) // 2, text, digit_w, digit_h, gap, LCD_ON, LCD_OFF)
 
         flags = []

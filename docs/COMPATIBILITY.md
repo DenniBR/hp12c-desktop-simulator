@@ -20,9 +20,57 @@ Target model: **HP-12C Classic** (not Platinum). Primary source:
   choice where the manual was ambiguous or where the exact physical position
   of a key could not be confirmed.
 
-Current suite: **112/112 cases passing** (`python tests/run_tests.py`), covering
-categories A–L. No known unresolved discrepancy is being hidden — what follows
+Current suite: **126/126 cases passing** (`python tests/run_tests.py`), covering
+categories A–M. No known unresolved discrepancy is being hidden — what follows
 is the complete list of known gaps.
+
+**2026-09-12 — v1.0.1 root-cause audit (stale digit entry)**: a user report
+that `STO` followed by `EEX` raised a fake Error 0 led to a deeper audit of
+every prefix-starter key (`F`, `G`, `STO`, `RCL`, `GTO`) rather than a
+one-off patch. Two distinct root causes were found and fixed, both in
+`engine.py`:
+1. Every prefix-continuation branch (`_continue_sto`, `_continue_rcl`,
+   `_continue_gto`, the `.`/arithmetic sub-states) ended with a blanket
+   `raise ValueError` for any real keyboard key it didn't specifically
+   expect, which the dispatcher turned into a fake "Error 0" — the exact
+   bug class already fixed for `f`/`g` in the previous audit, just missed
+   for `STO`/`RCL`/`GTO`. Fixed the same way: a real key with no valid
+   target for that prefix cancels the prefix as a harmless no-op.
+2. Deeper bug: typing a number, then pressing `STO` (or `RCL`, `F`, `G`)
+   and completing its second key, left the ORIGINAL number's digit-entry
+   buffer open — so the next digit typed silently concatenated onto the
+   old number instead of starting fresh (`10 STO 5` then typing `7` showed
+   `107`, not `7`). Every other function key on this keyboard (`ENTER`,
+   `CLx`, the arithmetic keys, `x<>y`, `R-down`) already terminates digit
+   entry as the first thing it does; the prefix-starter keys were the one
+   place that deferred it to whichever leaf branch the second key resolved
+   to — and some leaf branches never did it, especially on an error path
+   (the entry stayed open even after the error was cleared). Fixed at the
+   single point where `F`/`G`/`STO`/`RCL`/`GTO` are recognized, so it now
+   holds regardless of what the second key turns out to be, valid or not.
+
+An exhaustive sweep (every prefix × all 38 UI-reachable keys, both for the
+"fake error" class and the "stale entry" class) found zero remaining
+instances of either bug. 14 new regression cases (category M) cover both,
+including `STO -> EEX` itself, the exact stale-entry repro, and the
+error-then-clear-then-fresh-number case that would have hidden a
+half-fix.
+
+**2026-09-12 — LCD visual pass**: the on-screen LCD's active segments read
+as pale/washed-out and the digit spacing looked like "loose separate
+drawings" rather than one number. Direct pixel measurement of the reference
+photo (`hp12c.png`) found the glass is 50.1% of the case width, positioned
+16.1% of the case width from the left edge (not centered — there is nearly
+twice as much cream to its right as to its left), and 9.84% of the case
+width tall; the on-screen LCD box was resized and repositioned to match
+(348×69 at a 112px left offset, was 550×80 centered — see `LCD_W` in
+`app.py`). The reference photo's display itself is powered off (flat glass,
+zero contrast even at 4x boost), so no digit segment color/thickness could
+be pixel-measured from it — that part is a legibility correction, not a
+photo measurement, and is documented as such in `app.py`: active segments
+are now much darker/near-black, inactive segments sit much closer to the
+glass color (a bare ghost, not a second visible gray), and the inter-digit
+gap was cut from 25% to 12% of digit width. No calculation logic changed.
 
 **2026-09-12 — keyboard functional audit**: active scan of all
 39 keys × {direct, f, g}, executing every route for real, plus flows driven

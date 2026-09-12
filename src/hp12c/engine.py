@@ -171,6 +171,16 @@ class Engine:
             self._continue_prefix(prefix, action)
             return
         if action in ("F", "G", "STO", "RCL", "GTO", "TEST0", "TESTXY"):
+            # Every other function key on this keyboard terminates digit entry
+            # the moment it is pressed (ENTER, CLx, arithmetic, x<>y, R-down
+            # all do it as their first act) -- these prefix-starters are no
+            # different, they just need a second keystroke to know WHICH
+            # function. Terminating here, not deferred to whichever leaf
+            # branch the second key resolves to, is what makes this hold even
+            # when that second key turns out to be invalid and raises an
+            # error (e.g. STO into a register arithmetic can't reach): the
+            # stale entry can no longer leak into the number typed next.
+            self.stack.terminate_entry()
             self.pending_prefix = action
             return
         self._dispatch_plain(action)
@@ -477,18 +487,26 @@ class Engine:
         if prefix == "STO_DOT":
             if action in DIGIT_ACTIONS:
                 self.mem.sto(f"R.{action[1:]}", self.stack.x)
+                self.stack.terminate_entry()
                 self.stack.suppress_next_lift(); return
+            if action in KEYBOARD_ACTIONS:
+                return  # incomplete STO . <digit>: cancelled, not a math error
             raise ValueError("STO . needs a digit")
         if prefix == "RCL_DOT":
             if action in DIGIT_ACTIONS:
                 self.stack.enter_value(self.mem.rcl(f"R.{action[1:]}")); return
+            if action in KEYBOARD_ACTIONS:
+                return  # incomplete RCL . <digit>: cancelled, not a math error
             raise ValueError("RCL . needs a digit")
         if prefix.startswith("STO_ARITH:"):
             self._continue_sto_arith(prefix.split(":", 1)[1], action); return
         if prefix.startswith("STO_ARITH_DOT:"):
             op_name = prefix.split(":", 1)[1]
             if action in DIGIT_ACTIONS:
-                self.mem.sto_arith(ARITH_OPS[op_name], f"R.{action[1:]}", self.stack.x); return
+                self.mem.sto_arith(ARITH_OPS[op_name], f"R.{action[1:]}", self.stack.x)
+                self.stack.terminate_entry(); return
+            if action in KEYBOARD_ACTIONS:
+                return  # incomplete STO <op> . <digit>: cancelled, not a math error
             raise ValueError("STO-arithmetic . needs a digit")
         if prefix == "GTO":
             self._continue_gto(action); return
@@ -498,6 +516,8 @@ class Engine:
                 line_no = int(first_digit + action[1:])
                 self.program.pointer = line_no
                 return
+            if action in KEYBOARD_ACTIONS:
+                return  # incomplete GTO <d1><d2>: cancelled, not a math error
             raise ValueError("GTO needs two digits")
         if prefix in ("TEST0", "TESTXY"):
             self._continue_test(prefix, action); return
@@ -508,8 +528,10 @@ class Engine:
             self.stack.terminate_entry()
             self._dispatch_plain(F_SHIFT[action]); return
         if action in DIGIT_ACTIONS:
+            self.stack.terminate_entry()
             self.disp.mode = "STD"; self.disp.places = int(action[1:]); return
         if action == "DOT":
+            self.stack.terminate_entry()
             self.disp.mode = "SCI"; return
         if action in KEYBOARD_ACTIONS:
             return  # real key with no gold function: prefix consumed, nothing happens
@@ -529,7 +551,10 @@ class Engine:
             self.stack.suppress_next_lift(); return
         if action in DIGIT_ACTIONS:
             self.mem.sto(f"R{action[1:]}", self.stack.x)
+            self.stack.terminate_entry()
             self.stack.suppress_next_lift(); return
+        if action in KEYBOARD_ACTIONS:
+            return  # real key that is not a valid STO target: prefix cancelled, not a math error
         raise ValueError(f"bad STO target {action}")
 
     def _continue_rcl(self, action: str) -> None:
@@ -543,6 +568,8 @@ class Engine:
             self.stack.enter_value(getattr(self.mem.financial, FIN_FIELD[action])); return
         if action in DIGIT_ACTIONS:
             self.stack.enter_value(self.mem.rcl(f"R{action[1:]}")); return
+        if action in KEYBOARD_ACTIONS:
+            return  # real key that is not a valid RCL target: prefix cancelled, not a math error
         raise ValueError(f"bad RCL target {action}")
 
     def _continue_sto_arith(self, op_name: str, action: str) -> None:
@@ -550,7 +577,10 @@ class Engine:
         if action == "DOT":
             self.pending_prefix = f"STO_ARITH_DOT:{op_name}"; return
         if action in DIGIT_ACTIONS:
-            self.mem.sto_arith(op, f"R{action[1:]}", self.stack.x); return
+            self.mem.sto_arith(op, f"R{action[1:]}", self.stack.x)
+            self.stack.terminate_entry(); return
+        if action in KEYBOARD_ACTIONS:
+            return  # incomplete STO <op> <digit>: prefix cancelled, not a math error
         raise ValueError("bad STO-arithmetic register")
 
     def _continue_gto(self, action: str) -> None:
@@ -559,15 +589,19 @@ class Engine:
             self.program.pointer = self._label_line(action[4:]); return
         if action in DIGIT_ACTIONS:
             self.pending_prefix = f"GTO_D1:{action[1:]}"; return
+        if action in KEYBOARD_ACTIONS:
+            return  # real key that is not a valid GTO target: prefix cancelled, not a math error
         raise ValueError(f"bad GTO target {action}")
 
     def _continue_test(self, prefix: str, action: str) -> None:
         if action not in DIGIT_ACTIONS:
+            if action in KEYBOARD_ACTIONS:
+                return  # real key that is not a valid test selector: prefix cancelled
             raise ValueError("test selector must be a digit 0-5")
         idx = int(action[1:])
         ops = ["EQ", "NE", "GT", "LT", "GE", "LE"]
         if idx >= len(ops):
-            raise ValueError("test digit out of range 0-5")
+            return  # digit 6-9: not a valid test index, prefix cancelled, not a math error
         op = ops[idx]
         x, y = self.stack.x, self.stack.y
         other = D(0) if prefix == "TEST0" else y

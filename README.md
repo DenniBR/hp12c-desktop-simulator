@@ -32,9 +32,9 @@ scripts/          icon generation
 python tests/run_tests.py
 ```
 
-Prints EXPECTED/ACTUAL/MATCH for each case and a summary by category (A–L).
+Prints EXPECTED/ACTUAL/MATCH for each case and a summary by category (A–M).
 
-Current status: **112/112 test cases passing** — see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what this means (and does not mean) regarding validation against real hardware.
+Current status: **126/126 test cases passing** — see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what this means (and does not mean) regarding validation against real hardware.
 
 ## Development Requirements
 
