@@ -37,8 +37,8 @@ scripts/          geração do ícone
 python tests/run_tests.py
 ```
 
-Imprime EXPECTED/ACTUAL/MATCH por caso e um resumo por categoria (A–K).
-Estado atual: **72/72 casos passando** — ver [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
+Imprime EXPECTED/ACTUAL/MATCH por caso e um resumo por categoria (A–L).
+Estado atual: **112/112 casos passando** — ver [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
 para o que isso significa (e não significa) em termos de aferição contra
 hardware real.
 

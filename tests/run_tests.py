@@ -46,6 +46,9 @@ def run_case(case: dict) -> tuple[bool, str]:
     if "begin" in expect:
         actual = engine.mem.financial.begin
         checks.append(("begin", expect["begin"], actual, actual == expect["begin"]))
+    if "recording" in expect:
+        actual = engine.program.recording
+        checks.append(("recording", expect["recording"], actual, actual == expect["recording"]))
     if "t" in expect:
         actual = engine.stack.t
         expected = Decimal(expect["t"])
@@ -59,6 +62,23 @@ def run_case(case: dict) -> tuple[bool, str]:
     if "converted_count" in expect:
         actual = engine.mem.converted_count
         checks.append(("converted_count", expect["converted_count"], actual, actual == expect["converted_count"]))
+    if "program_lines" in expect:
+        actual = engine.program.lines
+        checks.append(("program_lines", expect["program_lines"], actual, actual == expect["program_lines"]))
+    if "program_pointer" in expect:
+        actual = engine.program.pointer
+        checks.append(("program_pointer", expect["program_pointer"], actual, actual == expect["program_pointer"]))
+    if "fin_n" in expect:
+        actual = engine.mem.financial.n
+        expected = Decimal(expect["fin_n"])
+        checks.append(("fin_n", str(expected), str(actual), actual == expected))
+    if "fin_i" in expect:
+        actual = engine.mem.financial.i
+        expected = Decimal(expect["fin_i"])
+        checks.append(("fin_i", str(expected), str(actual), actual == expected))
+    if "date_format" in expect:
+        actual = engine.date_format
+        checks.append(("date_format", expect["date_format"], actual, actual == expect["date_format"]))
 
     all_pass = all(c[3] for c in checks)
     detail_lines = [f"    {name}: expected={exp!r} actual={act!r} {'MATCH' if ok else 'MISMATCH'}"

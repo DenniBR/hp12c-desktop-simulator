@@ -35,16 +35,61 @@ FIN_FIELD = {"N": "n", "I": "i", "PV": "pv", "PMT": "pmt", "FV": "fv"}
 ARITH_OPS = {"ADD": operator.add, "SUB": operator.sub, "MUL": operator.mul, "DIV": operator.truediv}
 
 # g-shift table (blue labels): matches the real 12C keyboard photo.
+# 2026-09-12: added routes for the row2/row3 keys repositioned onto the main
+# keypad per the reference photo (UI reorganization only -- every target
+# action below already existed and was already covered by the 72-case suite;
+# this only adds a NEW way to reach the same, unchanged action).
 G_SHIFT = {
     "N": "TWELVE_MUL", "I": "TWELVE_DIV", "PV": "CFO", "PMT": "CFJ", "FV": "NJ",
     "CHS": "DATE", "D7": "BEG", "D8": "END",
     "ENTER": "LSTX", "SIGMA_PLUS": "SIGMA_MINUS",
+    "YX": "SQRT", "INV": "EXP", "PCT_TOTAL": "LN", "DELTA_PCT": "FRAC", "PCT": "INTG",
+    "EEX": "DDYS", "D4": "DMY", "D5": "MDY", "D6": "XW",
+    "D1": "XHAT", "D2": "YHAT", "D3": "FACT",
+    # 2026-09-12: corrected against the measured reference photo -- row3col3's
+    # PRIMARY key is R-down (RDOWN), not CLEAR_PRGM; g+R-down = GTO.
+    "RDOWN": "GTO",
+    # 2026-09-12 (functional audit): these blue labels are printed on the keys
+    # in the reference photo but had NO route -- pressing them raised a fake
+    # "Error 0". x-bar/s/x<=y/x=0 were already implemented in this engine and
+    # were simply unreachable; MEM/PSE/BST are documented no-ops (below).
+    "D0": "XBAR", "DOT": "SDEV", "XY": "X_LE_Y", "CLX": "X_EQ_0",
+    "D9": "MEM", "RS": "PSE", "SST": "BST",
 }
 # f-shift table (gold labels): the financial-register row's gold functions
 # are AMORT/INT/NPV/RND/IRR on the real 12C keyboard, not "FIX n" -- FIX only
 # applies to the digit keys 0-9, handled separately in _continue_f.
 F_SHIFT = {
     "N": "AMORT", "I": "INT_SIMPLE", "PV": "NPV", "PMT": "RND", "FV": "IRR",
+    "RS": "PR_TOGGLE", "XY": "CLEAR_FIN", "CLX": "CLEAR_REG",
+    # 2026-09-12: corrected against the measured reference photo -- row3col2's
+    # PRIMARY key is SST (not implemented, see the SST no-op below), and its
+    # gold f-shift is CLEAR SIGMA (was wrongly attached directly to the key
+    # itself before). row3col3's PRIMARY is R-down; its gold f-shift is
+    # CLEAR_PRGM (was wrongly the key's own primary before).
+    "SST": "CLEAR_SIGMA", "RDOWN": "CLEAR_PRGM",
+    # BOND/DEPRECIATION group (row 2): position now confirmed by the photo,
+    # not just the manual keycodes -- these 5 actions already existed and
+    # were already tested (C-007/007b/007c/007d, C-010/011/012); this only
+    # adds the route the photo shows, no new computation.
+    "YX": "BOND_PRICE", "INV": "BOND_YTM",
+    "PCT_TOTAL": "SL", "DELTA_PCT": "SOYD", "PCT": "DB",
+    # 2026-09-12 (functional audit): CLEAR PREFIX is gold-printed on ENTER in
+    # the reference photo and is one of the manual's independent CLEAR
+    # operations, but had no route -- it raised a fake "Error 0".
+    "ENTER": "CLEAR_PREFIX",
+}
+
+# Every action a physical key on this keyboard can emit. Used to tell a
+# prefix pressed before a key that simply has no shifted function (harmless
+# on real hardware -- the prefix is just consumed) apart from a genuinely
+# unknown action string, which stays an error so a typo'd route still fails
+# loudly instead of silently doing nothing.
+KEYBOARD_ACTIONS = {
+    "ADD", "CHS", "CLX", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+    "DELTA_PCT", "DIV", "DOT", "EEX", "ENTER", "F", "FV", "G", "I", "INV", "MUL", "N",
+    "PCT", "PCT_TOTAL", "PMT", "PV", "RCL", "RDOWN", "RS", "SIGMA_PLUS", "SST", "STO",
+    "SUB", "XY", "YX",
 }
 
 
@@ -54,6 +99,7 @@ class ProgramState:
     lines: list = field(default_factory=list)
     pointer: int = 0
     running: bool = False
+    held_prefix: str | None = None  # f/g pressed in Program mode, not yet committed to a line
 
 
 class Engine:
@@ -72,9 +118,31 @@ class Engine:
             self.error = None  # any key clears an error display without acting
             return
         if self.program.recording and action not in ("PR_TOGGLE", "CLEAR_PRGM"):
-            self._record(action)
+            self._press_recording(action)
             return
         self._dispatch(action)
+
+    def _press_recording(self, action: str) -> None:
+        """In Program mode almost every keystroke becomes a program line, but
+        f P/R (leave Program mode) and f CLEAR PRGM must still EXECUTE -- the
+        manual's own Run/Program toggle. The prefix therefore has to be
+        tracked here as well: recording a bare "F" line the moment it is
+        pressed makes the following P/R unrecognisable, and you can enter
+        Program mode and never get back out. The held prefix is committed as
+        its own line only once the next key proves it is not one of those two
+        escapes (one keystroke = one line still holds)."""
+        held = self.program.held_prefix
+        if held == "F" and F_SHIFT.get(action) in ("PR_TOGGLE", "CLEAR_PRGM"):
+            self.program.held_prefix = None
+            self._dispatch_plain(F_SHIFT[action])
+            return
+        if held is not None:
+            self._record(held)
+            self.program.held_prefix = None
+        if action in ("F", "G"):
+            self.program.held_prefix = action
+            return
+        self._record(action)
 
     def _record(self, action: str) -> None:
         needed = self.program.pointer + 1
@@ -125,6 +193,20 @@ class Engine:
             self.stack.exchange_xy(); return
         if action == "RDOWN":
             self.stack.roll_down(); return
+        if action in ("SST", "BST", "PSE", "MEM"):
+            # Single-step / back-step / pause / memory-status are not
+            # implemented. They are honest no-ops, not fake computations --
+            # and specifically NOT "Error 0", which would claim a math error
+            # that never happened. Their shifted partners (CLEAR_SIGMA on
+            # f+SST, P/R on f+R/S) are real and tested.
+            return
+        if action == "CLEAR_PREFIX":
+            # By the time this runs the prefix that selected it has already
+            # been consumed, so clearing prefixes is all there is to do. It
+            # touches no stack, register or program state (manual: the CLEAR
+            # operations are independent of one another).
+            self.pending_prefix = None
+            return
 
         if action == "ADD":
             self.stack.apply_binary(lambda y, x: y + x); return
@@ -341,8 +423,17 @@ class Engine:
         if action == "CLEAR_PRGM":
             self.mem.clear_prgm(); self.program.lines = []; self.program.pointer = 0; return
 
+        if action in ("X_LE_Y", "X_EQ_0"):
+            # The two conditional tests printed on the reference keyboard
+            # (g x<>y, g CLx). Like every 12C test they only have a visible
+            # effect inside a running program: skip the next line if false.
+            truth = self.stack.x <= self.stack.y if action == "X_LE_Y" else self.stack.x == 0
+            self._conditional(truth)
+            return
+
         if action == "PR_TOGGLE":
             self.program.recording = not self.program.recording
+            self.program.held_prefix = None
             if not self.program.recording:
                 self.program.pointer = 0
             return
@@ -368,8 +459,16 @@ class Engine:
             # prefix exemptions -- pressing them terminates digit entry.
             shifted = G_SHIFT.get(action)
             if shifted is None:
+                if action in KEYBOARD_ACTIONS:
+                    return  # real key with no blue function: prefix consumed, nothing happens
                 raise ValueError(f"no g-shift for {action}")
             self.stack.terminate_entry()
+            if shifted == "GTO":
+                # GTO is a prefix-starter (needs a following line/label), not
+                # a plain one-shot action -- hand off to the same GTO state
+                # machine a direct GTO keypress would enter.
+                self.pending_prefix = "GTO"
+                return
             self._dispatch_plain(shifted); return
         if prefix == "STO":
             self._continue_sto(action); return
@@ -412,16 +511,8 @@ class Engine:
             self.disp.mode = "STD"; self.disp.places = int(action[1:]); return
         if action == "DOT":
             self.disp.mode = "SCI"; return
-        if action == "CLEAR_REG":
-            self.mem.clear_reg(); self.stack.x = self.stack.y = self.stack.z = self.stack.t = D(0); return
-        if action == "CLEAR_FIN":
-            self.mem.clear_fin(); return
-        if action == "CLEAR_PRGM":
-            self.mem.clear_prgm(); self.program.lines = []; self.program.pointer = 0; return
-        if action == "CLEAR_SIGMA":
-            self.mem.clear_sigma(); return
-        if action == "CLX":
-            return  # full-mantissa hold: a UI display concern, no state change
+        if action in KEYBOARD_ACTIONS:
+            return  # real key with no gold function: prefix consumed, nothing happens
         raise ValueError(f"no f-shift for {action}")
 
     def _continue_sto(self, action: str) -> None:
@@ -484,6 +575,9 @@ class Engine:
             "EQ": x == other, "NE": x != other, "GT": x > other,
             "LT": x < other, "GE": x >= other, "LE": x <= other,
         }[op]
+        self._conditional(truth)
+
+    def _conditional(self, truth: bool) -> None:
         if not truth and self.program.running:
             self.program.pointer += 1  # skip next line
 

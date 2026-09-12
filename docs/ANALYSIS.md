@@ -7,6 +7,16 @@ Todas as regras abaixo foram confirmadas no texto do manual, não em memória ge
 
 ## 1. Inventário de teclas (mapa físico → função)
 
+> **DESATUALIZADO — não use esta tabela como referência de layout.** Ela é o
+> registro histórico da análise *pré-implementação*, feita a partir do texto do
+> manual antes de existir uma foto medida do aparelho. Vários posicionamentos
+> aqui estão errados (ela atribui CLEAR REG/FIN/PRGM a `f 7/8/9`, AMORT a
+> `f 1`, NPV a `f 3`, x≤y ao `÷`...). O layout real foi estabelecido depois por
+> medição direta do arquivo de referência `hp12c.png` e vive em
+> `src/hp12c/engine.py` (`F_SHIFT`/`G_SHIFT`) + `src/ui/app.py`. As *regras de
+> comportamento* das seções 2 em diante seguem válidas — só este mapa de
+> posições foi superado. Verificado na auditoria funcional de 2026-09-12.
+
 | Tecla física | Direto | `f` (dourado) | `g` (azul) |
 |---|---|---|---|
 | `n` | n (períodos) | — | 12× (n = 12·x, vai para reg. n) |

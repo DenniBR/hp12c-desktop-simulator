@@ -1,14 +1,24 @@
 """Tkinter desktop UI for the HP-12C Classic simulator.
 
-Visual layout: a "core" keypad (6x6) that mirrors the real 12C's physical
-key positions for the keys whose behavior AND position are both confirmed
-from the manual (digits, ENTER, CHS, EEX, arithmetic, n/i/PV/PMT/FV, STO,
-RCL, GTO, f, g, x<>y, R-down, Sigma+, %, Delta%, %T, CLx) -- plus a clearly
-separated "extended functions" panel for everything else (math, stats,
-depreciation, bonds, calendar, programming, clears). The extended panel is
-NOT claimed to match real physical key positions (see docs/COMPATIBILITY.md)
--- grouping functions there instead of guessing a fake position is the
-honest choice.
+Rebuilt from measured geometry, not from the previous widget tree. Every key
+cell is a FIXED PIXEL SIZE frame (KEY_W x CELL_H) positioned with `.place()`,
+not sized by Tkinter's character-unit Label width/height -- that's what let
+the previous version drift toward a tall/square silhouette instead of the
+reference photo's wide rectangle. Target overall body ratio ~1.55-1.65 (w:h),
+matching the reference.
+
+Structure (top to bottom): LCD row, then a 10-column x 4-row keypad on a
+solid dark panel (financial row / math row / program row+tall ENTER /
+f-g-STO-RCL row), with BOND/DEPRECIATION/CLEAR bracket labels between rows.
+Nothing below that: the case ends where the keyboard panel ends, exactly as
+in the reference. Engine actions with no physical key in the reference
+(XBAR, SDEV, LBL_A-E, TEST0, TESTXY) are still in the engine and still
+reachable programmatically -- they simply have no on-screen control, because
+the reference calculator has none.
+
+Every action string below is unchanged from the existing engine (see
+engine.py's F_SHIFT/G_SHIFT for the routing table) -- this file only moves
+WHERE a control sits and HOW it's drawn, never what it calls.
 """
 import sys
 import tkinter as tk
@@ -19,18 +29,51 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from hp12c.engine import Engine  # noqa: E402
 from ui import sevenseg  # noqa: E402
 
-CASE_BG = "#d7cbaa"        # warm cream/beige body, like the reference photo
+# ---------------------------------------------------------------- geometry --
+# All pixel-measured from the user's reference file (600x375, hp12c.png):
+# body ratio 560:357 = 1.57, LCD ~281x54, key pitch ~54px, keyboard panel
+# occupies nearly the whole body height below the LCD, and the auxiliary
+# strip is only ~15-18px tall in the original. KEY_H is picked (34, not the
+# raw ~28px the pitch implies) specifically to hit that 1.57 body ratio once
+# this app's own LCD block and window chrome are accounted for -- verified
+# by screenshot, not assumed.
+KEY_W = 64
+KEY_H = 34
+LABEL_H = 11         # gold/blue label strip height (px), each
+CELL_H = LABEL_H + KEY_H + LABEL_H
+GAP = 2              # px between adjacent keys
+BRACKET_H = 14       # px for a BOND/DEPRECIATION/CLEAR bracket row
+PANEL_PAD = 8        # px padding inside the dark keyboard panel
+CASE_PAD = 12        # px cream margin around the whole instrument
+LCD_W, LCD_H = 550, 80
+
+# ---------------------------------------------------------- colors (measured) -
+CASE_BG = "#e6ddc6"        # cream body -- sampled (230,221,198)
 CASE_BORDER = "#2a241a"
-KEY_BG = "#28262a"         # near-black keys
+KEYBOARD_BG = "#373435"    # dark keyboard panel -- sampled (55,52,53)
+KEY_BG = "#48484a"         # raised key face -- sampled (69-75,69-75,71-77)
 KEY_FG = "#f4f1e8"
-KEY_ACTIVE = "#47444a"
-GOLD = "#9c6f18"           # amber gold, readable on cream (not HP's exact hue)
-BLUE = "#155c8a"
-LCD_BG = "#c3ccb4"
+KEY_ACTIVE = "#65616a"
+GOLD = "#e27e34"           # gold label text -- sampled (226,126,52)
+BLUE = "#00aff0"           # blue label text -- sampled (0,175,240)
+F_KEY_BG = "#e27b30"       # "f" key fill -- sampled (226,123,48)
+G_KEY_BG = "#00aff0"       # "g" key fill -- sampled (0,175,240)
+LCD_BG = "#979980"         # LCD glass -- sampled (151,153,128)
 LCD_ON = "#20241a"
-LCD_OFF = "#aeb69f"
-EXT_BG = "#211d16"
-EXT_LABEL_FG = "#a89a78"
+LCD_OFF = "#84876f"
+MOLDING_BG = "#4b4b4d"     # bezel band between the cream case and the black
+                           # panel -- sampled (75,75,77), distinct from both
+PINSTRIPE = "#cbbfa0"      # thin cream accent line inset in that bezel -- sampled ~(205,195,165)
+
+
+def _darken(hex_color: str, factor: float = 0.72) -> str:
+    """Shades a key's face color for its blue-label sub-area -- the photo
+    shows that area as a visibly darker tone of the same key, not a flat
+    panel-colored gap."""
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    return f"#{int(r * factor):02x}{int(g * factor):02x}{int(b * factor):02x}"
 
 KEYBOARD_MAP = {
     "0": "D0", "1": "D1", "2": "D2", "3": "D3", "4": "D4", "5": "D5",
@@ -41,30 +84,58 @@ KEYBOARD_MAP = {
 
 
 class Key(tk.Frame):
-    def __init__(self, master, engine_callback, label, action, gold=None, blue=None, width=6):
-        super().__init__(master, bg=CASE_BG)
+    """One fixed-pixel-size keycap (KEY_W x CELL_H, or x(2*CELL_H+GAP) when
+    `tall=True` for ENTER): gold label above on the panel, then the key body
+    itself -- which the photo shows as ONE bordered cap split into two
+    physical areas, a larger main-label region on top and a smaller, visibly
+    DARKER blue-label region on the bottom (separated by a 1px reveal of the
+    panel color, not just two labels floating on the panel). `action=None`
+    makes the key inert (used only for the decorative ON key)."""
+
+    SUB_H = 12  # px, the blue-label sub-area's fixed height within the face
+
+    def __init__(self, master, engine_callback, label, action, gold=None, blue=None, tall=False,
+                 face_bg=None, face_fg=None):
+        h = CELL_H if not tall else CELL_H * 2 + GAP
+        super().__init__(master, width=KEY_W, height=h, bg=KEYBOARD_BG)
+        self.pack_propagate(False)
         self.action = action
         self.callback = engine_callback
-        top = tk.Label(self, text=gold or "", bg=CASE_BG, fg=GOLD, font=("Segoe UI", 7))
-        top.pack(fill="x")
-        self.btn = tk.Label(self, text=label, bg=KEY_BG, fg=KEY_FG, font=("Segoe UI", 10, "bold"),
-                             width=width, height=2, relief="raised", bd=2, cursor="hand2")
-        self.btn.pack(fill="both", expand=True)
-        bottom = tk.Label(self, text=blue or "", bg=CASE_BG, fg=BLUE, font=("Segoe UI", 7))
-        bottom.pack(fill="x")
-        self.btn.bind("<ButtonPress-1>", self._press)
-        self.btn.bind("<ButtonRelease-1>", self._release)
+        self.face_bg = face_bg or KEY_BG
+        self.sub_bg = _darken(self.face_bg)
+
+        tk.Label(self, text=gold or "", bg=KEYBOARD_BG, fg=GOLD,
+                  font=("Segoe UI", 6)).place(x=0, y=0, width=KEY_W, height=LABEL_H)
+
+        face_h = h - 2 * LABEL_H
+        sub_h = self.SUB_H
+        main_h = face_h - sub_h - 1  # 1px reveal of KEYBOARD_BG = the seam between the two areas
+
+        self.btn = tk.Label(self, text=label, bg=self.face_bg, fg=face_fg or KEY_FG,
+                             font=("Segoe UI", 9, "bold"), relief="raised", bd=2,
+                             cursor="hand2", anchor="n" if tall else "center")
+        self.btn.place(x=0, y=LABEL_H, width=KEY_W, height=main_h)
+
+        self.sub = tk.Label(self, text=blue or "", bg=self.sub_bg, fg=BLUE,
+                             font=("Segoe UI", 7, "bold"), relief="raised", bd=1,
+                             cursor="hand2")
+        self.sub.place(x=0, y=LABEL_H + main_h + 1, width=KEY_W, height=sub_h)
+
+        for widget in (self.btn, self.sub):
+            widget.bind("<ButtonPress-1>", self._press)
+            widget.bind("<ButtonRelease-1>", self._release)
 
     def _press(self, _event=None):
         self.btn.configure(relief="sunken", bg=KEY_ACTIVE)
-        self.callback(self.action)
+        if self.action is not None:
+            self.callback(self.action)
 
     def _release(self, _event=None):
-        self.btn.configure(relief="raised", bg=KEY_BG)
+        self.btn.configure(relief="raised", bg=self.face_bg)
 
     def flash(self):
         self.btn.configure(relief="sunken", bg=KEY_ACTIVE)
-        self.after(90, lambda: self.btn.configure(relief="raised", bg=KEY_BG))
+        self.after(90, lambda: self.btn.configure(relief="raised", bg=self.face_bg))
 
 
 def _resource_path(relative: str) -> Path:
@@ -88,33 +159,32 @@ class App:
             except tk.TclError:
                 pass
 
-        self.case = tk.Frame(root, bg=CASE_BG, padx=14, pady=14)
+        self.case = tk.Frame(root, bg=CASE_BG, padx=CASE_PAD, pady=CASE_PAD)
         self.case.pack()
 
         self._build_display(self.case)
         self._build_core_keypad(self.case)
-        self._build_extended_panel(self.case)
 
         root.bind("<Key>", self._on_key)
         self.refresh()
 
     # ---------------------------------------------------------- display --
     def _build_display(self, parent) -> None:
-        frame = tk.Frame(parent, bg=CASE_BG, pady=8)
-        frame.grid(row=0, column=0, columnspan=2, sticky="ew")
-        self.canvas = tk.Canvas(frame, width=420, height=90, bg=LCD_BG, highlightthickness=2,
-                                 highlightbackground="#4a4636")
+        frame = tk.Frame(parent, bg=CASE_BG)
+        frame.pack(fill="x", pady=(0, 8))
+        self.canvas = tk.Canvas(frame, width=LCD_W, height=LCD_H, bg=LCD_BG,
+                                 highlightthickness=2, highlightbackground="#4a4636")
         self.canvas.pack()
-        self.annunciators = tk.Label(frame, text="", bg=CASE_BG, fg=GOLD, font=("Segoe UI", 9, "bold"))
+        self.annunciators = tk.Label(frame, text="", bg=CASE_BG, fg=GOLD, font=("Segoe UI", 8, "bold"))
         self.annunciators.pack(anchor="w")
 
     def _render_display(self) -> None:
         self.canvas.delete("all")
         text = self.engine.display_text()
-        digit_w, digit_h, gap = 24, 44, 6
+        digit_w, digit_h, gap = 20, 38, 5
         total_w = sevenseg.measure(text, digit_w, gap)
-        x = max(10, 410 - total_w)
-        sevenseg.draw_string(self.canvas, x, 20, text, digit_w, digit_h, gap, LCD_ON, LCD_OFF)
+        x = max(8, LCD_W - 12 - total_w)
+        sevenseg.draw_string(self.canvas, x, (LCD_H - digit_h) // 2, text, digit_w, digit_h, gap, LCD_ON, LCD_OFF)
 
         flags = []
         if self.engine.pending_prefix == "F":
@@ -131,65 +201,102 @@ class App:
 
     # ------------------------------------------------------- core keypad --
     def _build_core_keypad(self, parent) -> None:
-        grid = tk.Frame(parent, bg=CASE_BG)
-        grid.grid(row=1, column=0, sticky="n")
+        """10 columns x 4 rows on a solid dark panel, matching the reference
+        photo: financial row, math row, program row (ENTER spans this row
+        and the next), f/g/STO/RCL row, with BOND/DEPRECIATION/CLEAR bracket
+        labels between rows. All gold/blue sub-labels shown here (including
+        MEM, PSE, BST, x<=y, x=0) are transcribed directly from the measured
+        reference photo. PSE/BST/x<=y/x=0 are printed on the caps but carry no
+        g-shift routing in this build -- shown as engraving, not as a promise
+        of behaviour."""
+        # Cream case -> molding band -> pinstripe accent -> black panel: the
+        # photo never goes straight from cream to black, it has this bezel
+        # sandwich in between (measured: an ~8px gray band, then a ~2px
+        # cream pinstripe, both sampled directly from the reference file).
+        molding = tk.Frame(parent, bg=MOLDING_BG)
+        molding.pack()
+        pinstripe = tk.Frame(molding, bg=PINSTRIPE)
+        pinstripe.pack(padx=8, pady=8)
+        panel = tk.Frame(pinstripe, bg=KEYBOARD_BG, padx=PANEL_PAD, pady=PANEL_PAD)
+        panel.pack(padx=2, pady=2)
+        grid = tk.Frame(panel, bg=KEYBOARD_BG)
+        grid.pack()
+
         rows = [
             [("n", "N", "AMORT", "12x"), ("i", "I", "INT", "12/"), ("PV", "PV", "NPV", "CFo"),
-             ("PMT", "PMT", "RND", "CFj"), ("FV", "FV", "IRR", "Nj"), ("CHS", "CHS", None, "DATE")],
-            [("7", "D7", None, "BEG"), ("8", "D8", None, "END"), ("9", "D9", None, None),
-             ("÷", "DIV", None, None), ("f", "F", None, None), ("g", "G", None, None)],
-            [("4", "D4", None, None), ("5", "D5", None, None), ("6", "D6", None, None),
-             ("×", "MUL", None, None), ("STO", "STO", None, None), ("RCL", "RCL", None, None)],
-            [("1", "D1", None, None), ("2", "D2", None, None), ("3", "D3", None, None),
-             ("−", "SUB", None, None), ("GTO", "GTO", None, None), ("x≷y", "XY", None, None)],
-            [("0", "D0", None, None), (".", "DOT", None, None), ("EEX", "EEX", None, None),
-             ("+", "ADD", None, None), ("Σ+", "SIGMA_PLUS", None, "Σ-"), ("R↓", "RDOWN", None, None)],
-            [("%", "PCT", None, None), ("Δ%", "DELTA_PCT", None, None), ("%T", "PCT_TOTAL", None, None),
-             ("CLx", "CLX", None, None), ("ENTER", "ENTER", None, "LSTx"), ("R/S", "RS", None, None)],
+             ("PMT", "PMT", "RND", "CFj"), ("FV", "FV", "IRR", "Nj"), ("CHS", "CHS", None, "DATE"),
+             ("7", "D7", None, "BEG"), ("8", "D8", None, "END"), ("9", "D9", None, "MEM"),
+             ("÷", "DIV", None, None)],
+            [("yˣ", "YX", "PRICE", "√x"), ("1/x", "INV", "YTM", "eˣ"), ("%T", "PCT_TOTAL", "SL", "LN"),
+             ("Δ%", "DELTA_PCT", "SOYD", "FRAC"), ("%", "PCT", "DB", "INTG"), ("EEX", "EEX", None, "ΔDYS"),
+             ("4", "D4", None, "D.MY"), ("5", "D5", None, "M.DY"), ("6", "D6", None, "x̄w"),
+             ("×", "MUL", None, None)],
+            # Row3col2/col3 corrected against the measured reference photo:
+            # the real primary keys are SST (not implemented -> honest no-op)
+            # and R-down (RDOWN, already implemented) -- see engine.py's
+            # F_SHIFT/G_SHIFT for "Sigma"/"PRGM"/"GTO" now routed correctly.
+            # Blue sub-labels PSE/BST/x<=y/x=0 are shown as measured from the
+            # reference photo but carry no g-shift action (engine unchanged).
+            [("R/S", "RS", "P/R", "PSE"), ("SST", "SST", "Σ", "BST"),
+             ("R↓", "RDOWN", "PRGM", "GTO"), ("x≷y", "XY", "FIN", "x≤y"), ("CLx", "CLX", "REG", "x=0"),
+             ("ENTER", "ENTER", "PREFIX", "LSTx"),
+             ("1", "D1", None, "x̂,r"), ("2", "D2", None, "ŷ,r"), ("3", "D3", None, "n!"),
+             ("−", "SUB", None, None)],
+            [("ON", None, None, None), ("f", "F", None, None), ("g", "G", None, None),
+             ("STO", "STO", None, None), ("RCL", "RCL", None, None),
+             # column 5 (ENTER) already rendered tall in the row above, skipped here
+             ("0", "D0", None, "x̄"), (".", "DOT", None, "s"), ("Σ+", "SIGMA_PLUS", None, "Σ-"),
+             ("+", "ADD", None, None)],
         ]
+        # Logical row -> grid row, leaving a thin bracket row above rows 2
+        # and 3 (none needed above row 1 or between rows 3-4).
+        grid_row_of = {0: 0, 1: 2, 2: 4, 3: 5}
+        self._bracket(grid, row=1, col=0, span=2, text="BOND")
+        self._bracket(grid, row=1, col=2, span=3, text="DEPRECIATION")
+        self._bracket(grid, row=3, col=1, span=4, text="CLEAR")
+
+        # "f" and "g" have colored faces on the real keyboard (measured:
+        # #E27B30 orange, #00AFF0 blue) -- not plain grey like every other key.
+        face_colors = {"F": (F_KEY_BG, "#3a2000"), "G": (G_KEY_BG, "#00263a")}
+
         self.keys = {}
         for r, row in enumerate(rows):
-            for c, (label, action, gold, blue) in enumerate(row):
-                key = Key(grid, self.press, label, action, gold, blue)
-                key.grid(row=r, column=c, padx=2, pady=2)
+            grid_row = grid_row_of[r]
+            c = 0
+            for label, action, gold, blue in row:
+                if r == 3 and c == 5:
+                    c += 1  # ENTER's column: occupied by the tall key from the row above
+                face_bg, face_fg = face_colors.get(action, (None, None))
+                if action == "ENTER":
+                    key = Key(grid, self.press, label, action, gold, blue, tall=True)
+                    key.grid(row=grid_row, column=c, rowspan=2, padx=GAP // 2, pady=GAP // 2)
+                else:
+                    key = Key(grid, self.press, label, action, gold, blue,
+                               face_bg=face_bg, face_fg=face_fg)
+                    key.grid(row=grid_row, column=c, padx=GAP // 2, pady=GAP // 2)
                 self.keys[action] = key
+                c += 1
 
-    # --------------------------------------------------- extended panel ---
-    def _build_extended_panel(self, parent) -> None:
-        panel = tk.Frame(parent, bg=EXT_BG, padx=8, pady=8)
-        panel.grid(row=1, column=1, sticky="n", padx=(12, 0))
-        tk.Label(panel, text="FUNÇÕES ADICIONAIS", bg=EXT_BG, fg=EXT_LABEL_FG,
-                  font=("Segoe UI", 8, "bold")).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 4))
+    @staticmethod
+    def _bracket(grid: tk.Frame, row: int, col: int, span: int, text: str) -> None:
+        """A real bracket, not a loose label over a line: a horizontal gold
+        rule with a short downward tick at each end (the photo's group
+        markings look like an open-topped bracket cupping the keys below),
+        the group name sitting on top of the rule with the rule broken
+        behind it (a same-color label background over the line's midpoint)."""
+        width = span * (KEY_W + GAP) - GAP
+        holder = tk.Frame(grid, bg=KEYBOARD_BG, width=width, height=BRACKET_H)
+        holder.grid(row=row, column=col, columnspan=span, sticky="ew")
+        holder.grid_propagate(False)
 
-        groups = [
-            ("Matemática", [("1/x", "INV"), ("√x", "SQRT"), ("yˣ", "YX"), ("LN", "LN"),
-                              ("eˣ", "EXP"), ("n!", "FACT"), ("RND", "RND"), ("INTG", "INTG"), ("FRAC", "FRAC")]),
-            ("Estatística", [("Σ-", "SIGMA_MINUS"), ("x̄,ȳ", "XBAR"), ("s", "SDEV"),
-                              ("ŷ,r", "YHAT"), ("x̂,r", "XHAT"), ("x̄w", "XW")]),
-            ("Financeiro (bonds/depreciação)", [("SL", "SL"), ("SOYD", "SOYD"), ("DB", "DB"),
-                              ("PRICE", "BOND_PRICE"), ("YTM", "BOND_YTM")]),
-            ("Calendário", [("ΔDYS", "DDYS"), ("D.MY", "DMY"), ("M.DY", "MDY")]),
-            ("Programação", [("P/R", "PR_TOGGLE"), ("A", "LBL_A"), ("B", "LBL_B"), ("C", "LBL_C"),
-                              ("D", "LBL_D"), ("E", "LBL_E"), ("x=0", "TEST0"), ("x:y", "TESTXY")]),
-            ("Limpar", [("REG", "CLEAR_REG"), ("FIN", "CLEAR_FIN"), ("Σ", "CLEAR_SIGMA"), ("PRGM", "CLEAR_PRGM")]),
-        ]
-        row_i = 1
-        for title, items in groups:
-            tk.Label(panel, text=title, bg=EXT_BG, fg=EXT_LABEL_FG, font=("Segoe UI", 7)).grid(
-                row=row_i, column=0, columnspan=4, sticky="w", pady=(6, 0))
-            row_i += 1
-            col = 0
-            for label, action in items:
-                btn = tk.Label(panel, text=label, bg=KEY_BG, fg=KEY_FG, font=("Segoe UI", 8),
-                                width=6, height=1, relief="raised", bd=1, cursor="hand2")
-                btn.grid(row=row_i, column=col, padx=1, pady=1)
-                btn.bind("<ButtonPress-1>", lambda e, a=action: self.press(a))
-                col += 1
-                if col == 4:
-                    col = 0
-                    row_i += 1
-            if col != 0:
-                row_i += 1
+        line_y = 5
+        tick_h = 6
+        tick_w = 2
+        tk.Frame(holder, bg=GOLD).place(x=tick_w, y=line_y, width=width - 2 * tick_w, height=1)
+        tk.Frame(holder, bg=GOLD).place(x=0, y=line_y, width=tick_w, height=tick_h)
+        tk.Frame(holder, bg=GOLD).place(x=width - tick_w, y=line_y, width=tick_w, height=tick_h)
+        tk.Label(holder, text=text, bg=KEYBOARD_BG, fg=GOLD,
+                 font=("Segoe UI", 6, "bold")).place(relx=0.5, y=line_y, anchor="center")
 
     # ------------------------------------------------------------- input -
     def press(self, action: str) -> None:

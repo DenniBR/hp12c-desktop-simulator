@@ -20,9 +20,19 @@ Modelo alvo: **HP-12C Classic** (não Platinum). Fonte primária:
   design explícita onde o manual era ambíguo ou onde a posição física exata
   de uma tecla não pôde ser confirmada.
 
-Suíte atual: **72/72 casos passando** (`python tests/run_tests.py`), cobrindo
-categorias A–K. Nenhuma divergência conhecida e não resolvida está sendo
+Suíte atual: **112/112 casos passando** (`python tests/run_tests.py`), cobrindo
+categorias A–L. Nenhuma divergência conhecida e não resolvida está sendo
 escondida — o que segue é a lista completa de lacunas conhecidas.
+
+**2026-09-12 — auditoria funcional do teclado**: varredura ativa de todas as
+39 teclas × {direto, f, g} executando cada rota de verdade, mais fluxos
+dirigidos apenas por sequências de teclas que a UI consegue emitir. Encontrou
+**8 bugs**, todos corrigidos, e **30 casos de teste novos** (categoria L +
+lacunas em B/C/D/E/F). O bug mais grave: `f P/R` entrava no modo de programa
+mas **nunca saía** — a tecla `f` era gravada como linha de programa em vez de
+agir como prefixo, então o modo Program era uma armadilha sem saída. Os testes
+antigos não pegaram isso porque acionavam a ação interna `PR_TOGGLE`
+diretamente, que nenhuma tecla da UI consegue emitir.
 
 **2026-09-12 — auditoria de fidelidade**: uma auditoria completa comparando
 cada função contra o texto do manual (não contra a implementação) encontrou e
@@ -190,7 +200,7 @@ confiança disponível sem um aparelho físico.
 
 ## Aferição
 
-Todos os 72 casos de teste são aferidos **contra o manual** (fórmulas do
+Todos os 112 casos de teste são aferidos **contra o manual** (fórmulas do
 Apêndice D, exemplos do próprio texto, ou identidades matematicamente
 verificáveis como o par-bond). **Nenhum caso foi aferido contra uma HP-12C
 física.** Não declaro "100% compatível" — apenas "consistente com a
