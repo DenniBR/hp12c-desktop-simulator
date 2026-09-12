@@ -1,103 +1,83 @@
-# HP-12C Classic — Simulador Desktop (não oficial)
+# HP-12C Classic — Desktop Simulator (Unofficial)
 
-Simulador funcional da calculadora financeira **HP-12C Classic**, implementado em
-Python (motor RPN + financeiro) com interface desktop Tkinter, empacotado como
-`.exe` standalone via PyInstaller.
+A functional simulator of the **HP-12C Classic** financial calculator, implemented in Python with an RPN and financial engine and a Tkinter desktop interface, packaged as a standalone `.exe` using PyInstaller.
 
-Este projeto **não é afiliado à HP**. Não usa firmware, ROM, imagens ou ativos
-proprietários da HP — a lógica foi reconstruída a partir do manual oficial
-público (*hp 12c user's guide*, Edition 4) e o visual foi desenhado
-originalmente.
+This project is **not affiliated with HP**. It does not use HP firmware, ROMs, images, or proprietary assets from HP. The logic was reconstructed from the official public *hp 12c user's guide*, Edition 4, and the visual interface was originally designed for this project.
 
-## Rodando o executável
+## Running the Executable
 
-```
+```text
 dist\HP12C-Simulator.exe
 ```
 
-Standalone, offline, sem instalação. Se `dist/` não existir, veja
-[Build](#build) abaixo.
+Standalone, offline, with no installation required. If `dist/` does not exist, see [Build](#build) below.
 
-## Estrutura
+## Project Structure
 
+```text
+src/hp12c/        engine: RPN stack, financial functions, calendar,
+                  statistics, memory, display, and errors
+                  (no UI, 100% independently testable)
+src/ui/           Tkinter interface (keypad + 7-segment LCD)
+src/main.py       entry point
+tests/            reference test suite (JSON) + test runner
+docs/             pre-implementation analysis, compatibility, references
+assets/           application icon (original, not the HP logo)
+scripts/          icon generation
 ```
-src/hp12c/        motor: pilha RPN, financeiro, calendário, estatística,
-                  memória, display, erros (sem UI, 100% testável isolado)
-src/ui/           interface Tkinter (teclado + LCD em 7 segmentos)
-src/main.py       ponto de entrada
-tests/            suíte de referência (JSON) + test runner
-docs/             análise pré-implementação, compatibilidade, referências
-assets/           ícone do aplicativo (original, não é o logo da HP)
-scripts/          geração do ícone
-```
 
-## Testes
+## Tests
 
-```
+```text
 python tests/run_tests.py
 ```
 
-Imprime EXPECTED/ACTUAL/MATCH por caso e um resumo por categoria (A–L).
-Estado atual: **112/112 casos passando** — ver [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-para o que isso significa (e não significa) em termos de aferição contra
-hardware real.
+Prints EXPECTED/ACTUAL/MATCH for each case and a summary by category (A–L).
 
-## Requisitos de desenvolvimento
+Current status: **112/112 test cases passing** — see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what this means (and does not mean) regarding validation against real hardware.
 
-- Python 3.11+ (só biblioteca padrão: `tkinter`, `decimal`, `datetime`, etc. —
-  o app em si não tem dependências externas).
-- `pyinstaller` (`pip install pyinstaller`) para gerar o `.exe`.
-- `Pillow` (`pip install pillow`) **somente** se for regenerar `assets/icon.ico`
-  via `scripts/make_icon.py` — não é usado pelo app.
-- [Inno Setup](https://jrsoftware.org/isinfo.php) **somente** se for gerar o
-  instalador opcional (`Setup.exe`) — não é necessário para o `.exe` em si.
+## Development Requirements
+
+* Python 3.11+ (standard library only: `tkinter`, `decimal`, `datetime`, etc. — the application itself has no external dependencies).
+* `pyinstaller` (`pip install pyinstaller`) to generate the `.exe`.
+* `Pillow` (`pip install pillow`) **only** if regenerating `assets/icon.ico` using `scripts/make_icon.py` — it is not used by the application.
+* [Inno Setup](https://jrsoftware.org/isinfo.php) **only** if generating the optional installer (`Setup.exe`) — it is not required for the `.exe` itself.
 
 ## Build
 
-```
-python scripts/make_icon.py    # gera assets/icon.ico (se ainda não existir)
+```text
+python scripts/make_icon.py    # generates assets/icon.ico (if it does not already exist)
 python -m PyInstaller --noconfirm --onefile --windowed ^
   --name "HP12C-Simulator" --icon "assets/icon.ico" ^
   --add-data "assets/icon.ico;assets" --paths "src" "src/main.py"
 ```
 
-Gera `dist/HP12C-Simulator.exe` (~13 MB, standalone, sem dependências externas).
-A receita exata também está em `HP12C-Simulator.spec` (`pyinstaller HP12C-Simulator.spec`
-funciona de forma equivalente).
+Generates `dist/HP12C-Simulator.exe` (~13 MB, standalone, with no external dependencies).
 
-### Instalador (opcional)
+The exact build recipe is also available in `HP12C-Simulator.spec` (`pyinstaller HP12C-Simulator.spec` works equivalently).
 
-Com o [Inno Setup](https://jrsoftware.org/isinfo.php) instalado:
+### Installer (Optional)
 
-```
+With [Inno Setup](https://jrsoftware.org/isinfo.php) installed:
+
+```text
 ISCC installer\setup.iss
 ```
 
-Gera `installer/Output/HP12C-Simulator-Setup.exe`. Requer que `dist/HP12C-Simulator.exe`
-já exista (rode o Build acima primeiro).
+Generates `installer/Output/HP12C-Simulator-Setup.exe`. The standalone executable must already exist in `dist/` (run the Build step first).
 
-## Documentação
+## Documentation
 
-- [docs/ANALYSIS.md](docs/ANALYSIS.md) — inventário de teclas/funções/estados
-  extraído do manual oficial, feito antes da implementação.
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) — o que está implementado,
-  o que não está, e o que é "verificado contra o manual" vs "verificado
-  contra hardware real" (ainda não há a segunda categoria).
-- [docs/REFERENCE.md](docs/REFERENCE.md) — fonte primária usada e como cada
-  categoria de função foi derivada dela.
+* [docs/ANALYSIS.md](docs/ANALYSIS.md) — inventory of keys, functions, and states extracted from the official manual before implementation.
+* [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) — what is implemented, what is not, and what is "verified against the manual" versus "verified against real hardware" (the latter is not yet available).
+* [docs/REFERENCE.md](docs/REFERENCE.md) — primary source used and how each function category was derived from it.
 
-## Licença / propriedade intelectual
+## License / Intellectual Property
 
-- Este projeto é licenciado sob a [Licença MIT](LICENSE) — Copyright (c) 2026 DenniBR.
-- Código e visual originais deste repositório.
-- `assets/icon.ico`: gerado originalmente por `scripts/make_icon.py` (formas
-  desenhadas via Pillow) — não é o logo da HP nem de terceiros.
-- Fontes usadas na interface (`Segoe UI`) são fontes do sistema operacional,
-  não embutidas no repositório.
-- Ferramentas de build usadas mas não distribuídas neste repositório:
-  [PyInstaller](https://pyinstaller.org/) (licença GPL com exceção para o
-  bootloader, permitindo distribuir o `.exe` gerado sob qualquer licença) e
-  [Inno Setup](https://jrsoftware.org/isinfo.php) (uso livre, inclusive
-  comercial). Nenhum binário dessas ferramentas é versionado neste repositório.
-- HP-12C é marca registrada da HP Inc.; este projeto não reivindica afiliação
-  nem reproduz firmware, ROM ou ativos proprietários da HP.
+* This project is licensed under the [MIT License](LICENSE) — Copyright (c) 2026 DenniBR.
+* Original code and visual design in this repository.
+* `assets/icon.ico`: originally generated by `scripts/make_icon.py` using shapes drawn with Pillow — it is not the HP logo or a third-party asset.
+* Fonts used by the interface (`Segoe UI`) are operating-system fonts and are not embedded in the repository.
+* Build tools used but not distributed in this repository:
+  [PyInstaller](https://pyinstaller.org/) (GPL with a bootloader exception, allowing the generated `.exe` to be distributed under another license) and [Inno Setup](https://jrsoftware.org/isinfo.php) (free for use, including commercial use). No binaries from these tools are versioned in this repository.
+* HP-12C is a registered trademark of HP Inc.; this project does not claim affiliation with HP and does not reproduce HP firmware, ROMs, or proprietary assets.
