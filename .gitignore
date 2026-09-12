@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment / secrets (none should ever exist in this repo, but never allow one in)
+.env
+.env.*
+*.pem
+*.key
+
+# PyInstaller build output (regenerate with the command in README.md)
+build/
+dist/
+
+# Inno Setup compiled output (regenerate with ISCC installer/setup.iss)
+installer/Output/
+# Third-party installer binaries some contributors may download locally
+installer/*.exe
+
+# Editor / IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS junk
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+
+# Logs, temp files, local scratch
+*.log
+*.tmp
+*.bak
+*~
