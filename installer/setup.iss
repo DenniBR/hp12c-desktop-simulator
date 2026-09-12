@@ -8,7 +8,7 @@
 ; Output:      installer\Output\HP12C-Simulator-Setup.exe
 
 #define MyAppName "HP-12C Simulator"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "Projeto HP-12C Simulator (não oficial)"
 #define MyAppExeName "HP12C-Simulator.exe"
 
