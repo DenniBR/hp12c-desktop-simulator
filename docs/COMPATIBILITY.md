@@ -1,216 +1,221 @@
-# Compatibilidade — HP-12C Classic Simulator
+# Compatibility — HP-12C Classic Simulator
 
-Modelo alvo: **HP-12C Classic** (não Platinum). Fonte primária:
+Target model: **HP-12C Classic** (not Platinum). Primary source:
 *hp 12c financial calculator user's guide*, Edition 4, HP Part Number
-0012C-90001 (manual oficial linkado pelo usuário no briefing original).
+0012C-90001 (official manual linked by the user in the original briefing).
 
-## Como ler este documento
+## How to read this document
 
-- **VERIFICADO (manual)** = o comportamento/fórmula foi confirmado no texto
-  do manual (citado em `docs/ANALYSIS.md`) e coberto por caso(s) de teste em
+* **VERIFIED (manual)** = the behavior/formula was confirmed in the text
+  of the manual (cited in `docs/ANALYSIS.md`) and covered by test case(s) in
   `tests/hp12c-reference.json`.
-- **NOT VERIFIED (hardware)** = ainda não há nenhum caso de teste com saída
-  de uma HP-12C física real. Todo o projeto está nesta categoria até que o
-  usuário forneça resultados de um aparelho real — nesse momento esses
-  resultados tornam-se fixtures prioritárias (ver política em
-  `docs/ANALYSIS.md` §12 e no briefing original).
-- **NOT IMPLEMENTED** = função do manual que a calculadora real tem e este
-  simulador não reproduz ainda.
-- **SIMPLIFICAÇÃO DOCUMENTADA** = implementado, mas com uma escolha de
-  design explícita onde o manual era ambíguo ou onde a posição física exata
-  de uma tecla não pôde ser confirmada.
+* **NOT VERIFIED (hardware)** = there is still no test case with output
+  from a real physical HP-12C. The entire project remains in this category until
+  the user provides results from a real device — at that point those
+  results become priority fixtures (see policy in
+  `docs/ANALYSIS.md` §12 and in the original briefing).
+* **NOT IMPLEMENTED** = a function that the manual says the real calculator has
+  but that this simulator does not reproduce yet.
+* **DOCUMENTED SIMPLIFICATION** = implemented, but with an explicit design
+  choice where the manual was ambiguous or where the exact physical position
+  of a key could not be confirmed.
 
-Suíte atual: **112/112 casos passando** (`python tests/run_tests.py`), cobrindo
-categorias A–L. Nenhuma divergência conhecida e não resolvida está sendo
-escondida — o que segue é a lista completa de lacunas conhecidas.
+Current suite: **112/112 cases passing** (`python tests/run_tests.py`), covering
+categories A–L. No known unresolved discrepancy is being hidden — what follows
+is the complete list of known gaps.
 
-**2026-09-12 — auditoria funcional do teclado**: varredura ativa de todas as
-39 teclas × {direto, f, g} executando cada rota de verdade, mais fluxos
-dirigidos apenas por sequências de teclas que a UI consegue emitir. Encontrou
-**8 bugs**, todos corrigidos, e **30 casos de teste novos** (categoria L +
-lacunas em B/C/D/E/F). O bug mais grave: `f P/R` entrava no modo de programa
-mas **nunca saía** — a tecla `f` era gravada como linha de programa em vez de
-agir como prefixo, então o modo Program era uma armadilha sem saída. Os testes
-antigos não pegaram isso porque acionavam a ação interna `PR_TOGGLE`
-diretamente, que nenhuma tecla da UI consegue emitir.
+**2026-09-12 — keyboard functional audit**: active scan of all
+39 keys × {direct, f, g}, executing every route for real, plus flows driven
+only by key sequences that the UI can emit. It found **8 bugs**, all fixed,
+and **30 new test cases** (category L + gaps in B/C/D/E/F). The most serious bug:
+`f P/R` entered program mode but **never exited** — the `f` key was recorded
+as a program line instead of acting as a prefix, so Program mode was an
+inescapable trap. The old tests did not catch this because they triggered the
+internal `PR_TOGGLE` action directly, which no UI key can emit.
 
-**2026-09-12 — auditoria de fidelidade**: uma auditoria completa comparando
-cada função contra o texto do manual (não contra a implementação) encontrou e
-corrigiu **7 divergências reais** entre o comportamento anterior e o manual —
-não apenas nomenclatura. Lista completa e evidência de cada uma em
-`docs/ANALYSIS.md` §5; resumo:
-1. Juros simples (`INT`) tratava `n` como anos e não dividia por 360/365 —
-   corrigido, validado contra exemplo do manual ($450/60 dias/7% → 5,25/5,18).
-2. Amortização usava arredondamento de 10 dígitos em vez do arredondamento
-   pelas casas decimais do display (o `_RND` da fórmula) — corrigido,
-   validado contra o exemplo de 25 anos do manual.
-3. Amortização decrementava `n` de um prazo pré-definido; o manual mostra que
-   `n` ACUMULA períodos amortizados a partir de 0 — corrigido.
-4. Depreciação lia SBV/SAL/vida da pilha RPN; o manual usa PV/FV/n — corrigido.
-5. YTM de bonds lia o preço-alvo do registrador FV; o manual usa PV —
-   corrigido.
-6. Registradores de saída de AMORT/INT/depreciação/bond-PRICE seguiam um
-   "lift" genérico da pilha; a tabela do Apêndice A exige um mapeamento
-   T/Z/Y/X específico e diferente — corrigido para as 4 funções.
-7. Média ponderada dividia por Σy; o exemplo do manual (item ENTER peso Σ+)
-   mostra que o peso vai para X, logo a divisão correta é por Σx — corrigido.
+**2026-09-12 — fidelity audit**: a complete audit comparing each function against
+the text of the manual (not against the implementation) found and fixed
+**7 real discrepancies** between the previous behavior and the manual —
+not merely nomenclature. Complete list and evidence for each in
+`docs/ANALYSIS.md` §5; summary:
 
-Todas as 7 correções foram validadas bit-a-bit (ou arredondado ao display,
-quando é isso que o próprio manual mostra) contra exemplos numéricos REAIS do
-manual — não apenas contra a fórmula. Isso é aferição documental da mais alta
-confiança disponível sem um aparelho físico.
+1. Simple interest (`INT`) treated `n` as years and did not divide by 360/365 —
+   fixed, validated against the manual example ($450/60 days/7% → 5.25/5.18).
+2. Amortization used 10-digit rounding instead of rounding to the display's
+   decimal places (the `_RND` of the formula) — fixed,
+   validated against the manual's 25-year example.
+3. Amortization decremented `n` from a predefined term; the manual shows that
+   `n` ACCUMULATES amortized periods starting from 0 — fixed.
+4. Depreciation read SBV/SAL/life from the RPN stack; the manual uses PV/FV/n —
+   fixed.
+5. Bond YTM read the target price from the FV register; the manual uses PV —
+   fixed.
+6. AMORT/INT/depreciation/bond-PRICE output registers followed a generic
+   stack "lift"; Appendix A's table requires a specific and different T/Z/Y/X
+   mapping — fixed for all 4 functions.
+7. Weighted average divided by Σy; the manual example (ENTER weight Σ+)
+   shows that the weight goes into X, so the correct division is by Σx — fixed.
 
-## Implementado e verificado contra o manual
+All 7 corrections were validated bit-by-bit (or rounded to the display,
+when that is what the manual itself shows) against REAL numerical examples
+from the manual — not merely against the formula. This is documentary
+verification of the highest confidence available without a physical device.
 
-- Pilha RPN completa (X,Y,Z,T,LAST X), regras de stack lift/drop exatas
-  (Apêndice A), incluindo a supressão de lift pelas 6 teclas específicas do
-  12C (ENTER, CLx, Σ+, Σ-, 12×, 12÷) e por STO em registrador financeiro.
-- Aritmética, 1/x, √x, y^x, LN, e^x, n!, RND, INTG, FRAC.
-- %, Δ%, %T (com o comportamento de pilha diferenciado — não dropa/lifta).
-- TVM sem período fracionário (n, i, PV, PMT, FV), com n sempre arredondado
-  para cima; solução de i por bisseção (não é o algoritmo do firmware, ver
-  seção "Aproximações" abaixo).
-- Amortização (`f n`): recursão período a período do Apêndice D com
-  arredondamento pelas casas decimais do display, `n` acumulando períodos
-  amortizados, registradores de saída T/Z/Y/X exatos — bit-a-bit igual ao
-  exemplo do manual (hipoteca 25 anos/13.25%/$50.000, 2 anos).
-- Juros simples (`f i`): bases 360 e 365, `n` em dias, `i` anual — bit-a-bit
-  igual ao exemplo do manual ($450/60 dias/7%).
-- NPV / IRR com até 20 fluxos de caixa distintos e repetições (Nj).
-- Depreciação SL/SOYD/DB (fórmulas de tecla, sem período parcial), entradas
-  via PV/FV/n/i (não pilha), RBV persistido em PV entre chamadas de DB —
-  bit-a-bit igual ao exemplo do manual (custo 10.000/salvamento 500/vida 5
-  anos/200%, 3 anos).
-- Bonds (PRICE/YTM) pelo método SIA citado no próprio manual, entradas via
-  PMT(cupom)/i(yield)/PV(preço-alvo do YTM), resultado de PRICE também
-  gravado em PV — bit-a-bit (arredondado ao display) igual aos dois exemplos
-  do manual, além da identidade "par bond" (cupom=yield ⇒ preço=100)
-  verificada por cálculo independente.
-- Calendário: ΔDYS actual-basis (via `datetime` do Python, não a fórmula
-  polinomial do manual — ver justificativa em `calendar_fns.py`) e 30/360
-  (fórmula exata do Apêndice D). DATE (soma de dias). Formatos D.MY/M.DY.
-- Estatística completa: Σ+/Σ-, média, média ponderada (Σxy/Σx — peso em X,
-  item em Y, bit-a-bit igual ao exemplo do manual dos 4 postos de gasolina),
-  desvio padrão amostral, regressão linear (ŷ,r e x̂,r).
-- Registradores R0–R9/R.0–R.9, STO/RCL, aritmética de registrador restrita a
-  R0–R4 (Erro 4 fora disso — confirmado no Apêndice C, não é suposição).
-- Modelo de memória de programa: 8 linhas base + 20 registradores, expansão
-  em blocos de 7 linhas consumindo registradores na ordem R.9→R.0→R9→...,
-  limite de 99 linhas (consumindo exatamente 13 registradores) — replica o
-  exemplo numérico do próprio manual.
-- Programação: gravação de teclas (1 tecla física = 1 linha, igual ao
-  hardware), GTO, rótulos A–E, R/S, testes condicionais (x=0/x≠0/x>0/x<0/
-  x≥0/x≤0 e x=y/x≠y/x>y/x<y/x≥y/x≤y).
-- Display: Standard (FIX 0–9) e Científico (mantissa de 7 dígitos
-  significativos), arredondamento round-half-up, overflow (clamp em
-  ±9.999999999×10^99) e underflow (→0) exatamente como descrito na p.73.
-- Erros 0–9 completos (Apêndice C) com as condições exatas listadas no
-  manual, não uma lista genérica de "erro matemático".
+## Implemented and verified against the manual
 
-## NOT IMPLEMENTED (por design, não por omissão)
+* Complete RPN stack (X,Y,Z,T,LAST X), exact stack lift/drop rules
+  (Appendix A), including lift suppression by the 6 specific 12C keys
+  (ENTER, CLx, Σ+, Σ-, 12×, 12÷) and by STO into a financial register.
+* Arithmetic, 1/x, √x, y^x, LN, e^x, n!, RND, INTG, FRAC.
+* %, Δ%, %T (with differentiated stack behavior — does not drop/lift).
+* TVM without fractional periods (n, i, PV, PMT, FV), with n always rounded
+  upward; solution for i by bisection (not the firmware algorithm, see
+  the "Approximations" section below).
+* Amortization (`f n`): period-by-period recursion from Appendix D with
+  rounding to the display's decimal places, `n` accumulating amortized
+  periods, exact T/Z/Y/X output registers — bit-by-bit equal to the manual's
+  example (25-year mortgage/13.25%/$50,000, 2 years).
+* Simple interest (`f i`): 360 and 365 bases, `n` in days, `i` annual —
+  bit-by-bit equal to the manual's example ($450/60 days/7%).
+* NPV / IRR with up to 20 distinct cash flows and repetitions (Nj).
+* Depreciation SL/SOYD/DB (key formulas, without partial periods), inputs
+  via PV/FV/n/i (not stack), RBV persisted in PV between DB calls —
+  bit-by-bit equal to the manual's example (cost 10,000/salvage 500/life
+  5 years/200%, 3 years).
+* Bonds (PRICE/YTM) using the SIA method cited in the manual itself, inputs via
+  PMT (coupon)/i (yield)/PV (target price for YTM), PRICE result also
+  stored in PV — bit-by-bit (rounded to the display) equal to both examples
+  in the manual, in addition to the "par bond" identity
+  (coupon=yield ⇒ price=100) verified by independent calculation.
+* Calendar: actual-basis ΔDYS (via Python's `datetime`, not the polynomial
+  formula in the manual — see justification in `calendar_fns.py`) and 30/360
+  (exact Appendix D formula). DATE (addition of days). D.MY/M.DY formats.
+* Complete statistics: Σ+/Σ-, mean, weighted mean (Σxy/Σx — weight in X,
+  item in Y, bit-by-bit equal to the manual's example of the 4 gas stations),
+  sample standard deviation, linear regression (ŷ,r and x̂,r).
+* R0–R9/R.0–R.9 registers, STO/RCL, register arithmetic restricted to
+  R0–R4 (Error 4 outside these — confirmed in Appendix C, not an assumption).
+* Program memory model: 8 base lines + 20 registers, expansion in blocks of
+  7 lines consuming registers in the order R.9→R.0→R9→...,
+  limit of 99 lines (consuming exactly 13 registers) — reproduces the
+  manual's own numerical example.
+* Programming: key recording (1 physical key = 1 line, as in the
+  hardware), GTO, labels A–E, R/S, conditional tests (x=0/x≠0/x>0/x<0/
+  x≥0/x≤0 and x=y/x≠y/x>y/x<y/x≥y/x≤y).
+* Display: Standard (FIX 0–9) and Scientific (7 significant-digit
+  mantissa), round-half-up rounding, overflow (clamp at
+  ±9.999999999×10^99) and underflow (→0) exactly as described on p.73.
+* Complete Errors 0–9 (Appendix C) with the exact conditions listed in
+  the manual, not a generic list of "mathematical errors".
 
-- **Modo ENG (engenharia)**: não existe no HP-12C Classic. Busca no texto
-  completo do manual (211 páginas) não encontrou nenhuma ocorrência de "ENG"
-  como modo de display. Implementá-lo seria inventar um comportamento que o
-  hardware alvo não tem.
-- **TVM com período fracionário (odd period)**: o manual documenta duas
-  variantes (juros simples ou compostos no período fracionário) mas não
-  deixa claro qual a tecla usa por padrão sem período explícito. Em vez de
-  adivinhar, apenas o caminho sem período fracionário está implementado.
-- **Bonds com cupom não-semestral / base 30/360 para bonds**: só o caso
-  semestral actual/actual está implementado.
-- **Separador decimal vírgula/ponto configurável** (recurso de hardware via
-  segurar `.` ao ligar): não implementado, baixa prioridade funcional.
-- **`f CLx` segurado mostrando a mantissa completa**: reconhecido como tecla
-  mas não implementado (é um recurso de UI, não de cálculo).
-- **Edição de um fluxo de caixa específico por índice** (armazenar `j` em
-  `n` depois `g Nj` para corrigir a repetição de um CFj já lançado, sem
-  refazer a lista inteira — descrito na p.61-62): não implementado; o
-  simulador só grava CFo/CFj sequencialmente. Encontrado durante a auditoria,
-  registrado aqui em vez de ser deixado de fora silenciosamente.
-- **`g` + tecla = MEM** (mapa de memória: linhas de programa usadas vs.
-  registradores disponíveis): reconhecido (Programming Key Index, p.206) mas
-  não implementado — só consulta informativa, não afeta cálculo.
+## NOT IMPLEMENTED (by design, not omission)
 
-## SIMPLIFICAÇÕES DOCUMENTADAS
+* **ENG (engineering) mode**: it does not exist on the HP-12C Classic. A search
+  of the complete manual (211 pages) found no occurrence of "ENG"
+  as a display mode. Implementing it would invent behavior that the
+  target hardware does not have.
+* **TVM with fractional periods (odd period)**: the manual documents two
+  variants (simple or compound interest during the fractional period) but
+  does not make clear which key is used by default without an explicit period.
+  Instead of guessing, only the path without a fractional period is implemented.
+* **Bonds with non-semiannual coupon / 30/360 basis for bonds**: only the
+  semiannual actual/actual case is implemented.
+* **Configurable decimal separator comma/period** (hardware feature via
+  holding `.` while powering on): not implemented, low functional priority.
+* **`f CLx` held down showing the full mantissa**: recognized as a key
+  but not implemented (it is a UI feature, not a calculation feature).
+* **Editing a specific cash flow by index** (storing `j` in `n` and then
+  `g Nj` to correct a previously entered CFj repetition, without rebuilding
+  the entire list — described on p.61-62): not implemented; the simulator
+  only records CFo/CFj sequentially. Found during the audit,
+  recorded here instead of being silently omitted.
+* **`g` + key = MEM** (memory map: program lines used vs.
+  registers available): recognized (Programming Key Index, p.206) but
+  not implemented — informational only, does not affect calculation.
 
-- **Layout físico do teclado**: o teclado "core" (n/i/PV/PMT/FV, dígitos,
-  aritmética, ENTER, CHS, EEX, STO, RCL, GTO, f, g, x≷y, R↓, Σ+, %/Δ%/%T,
-  CLx) segue a disposição real do 12C. As atribuições `f`/`g` da linha
-  financeira (`f n`=AMORT, `f i`=INT, `f PV`=NPV, `f PMT`=RND, `f FV`=IRR;
+## DOCUMENTED SIMPLIFICATIONS
+
+* **Physical keyboard layout**: the "core" keyboard (n/i/PV/PMT/FV, digits,
+  arithmetic, ENTER, CHS, EEX, STO, RCL, GTO, f, g, x≷y, R↓, Σ+, %/Δ%/%T,
+  CLx) follows the actual 12C layout. The `f`/`g` assignments of the
+  financial row (`f n`=AMORT, `f i`=INT, `f PV`=NPV, `f PMT`=RND, `f FV`=IRR;
   `g n`=12×, `g i`=12÷, `g PV`=CFo, `g PMT`=CFj, `g FV`=Nj, `g CHS`=DATE,
-  `g 7`=BEG, `g 8`=END) foram confirmadas contra uma foto de referência
-  fornecida pelo usuário (não uma imagem proprietária da HP redistribuída —
-  apenas usada para conferência de posição/rótulo, como qualquer referência
-  de manual). Funções ainda sem posição física confirmada (matemática
-  avançada, estatística, depreciação, bonds, calendário D.MY/M.DY, `g 9`=MEM
-  — não implementado, programação, CLEAR REG/FIN/Σ/PRGM) continuam num
-  painel "Funções Adicionais" separado — mais honesto do que arriscar uma
-  posição física não verificada para essas teclas no corpo principal.
-  Paleta de cores (corpo bege/creme, teclas quase pretas, dourado/azul)
-  também ajustada para a referência.
+  `g 7`=BEG, `g 8`=END) were confirmed against a reference photo
+  provided by the user (not a redistributed proprietary HP image —
+  only used for position/label verification, like any manual reference).
+  Functions still without confirmed physical positions (advanced mathematics,
+  statistics, depreciation, bonds, calendar D.MY/M.DY, `g 9`=MEM —
+  not implemented, programming, CLEAR REG/FIN/Σ/PRGM) remain in a separate
+  "Additional Functions" panel — more honest than risking an unverified
+  physical position for those keys in the main body.
+  Color palette (beige/cream body, nearly black keys, gold/blue)
+  was also adjusted to match the reference.
 
-  **2026-09-12 — auditoria de posição física (SL/SOYD/DB/PRICE/YTM):** o
-  manual documenta (p.91) um "keycode" de 2 dígitos (linha, posição) exibido
-  para cada tecla gravada em um programa. Isso permite confirmar posição
-  **sem depender da foto**, cruzando citações independentes do próprio texto:
-  - **DB (`f #`) — CONFIRMADA**: duas listagens de programa (p.68-69, p.141)
-    mostram `f# ... 42 25`; separadamente, o texto da p.91 afirma
-    explicitamente que a tecla `%` (glifo `b`) tem keycode `25` (linha2,
-    posição5). As duas citações batem exatamente na mesma tecla — **DB é
-    `f` + a tecla `%`**, independente da foto.
-  - **SL (`f V`) e SOYD (`f Ý`) — POSIÇÃO CONFIRMADA, TECLA-BASE NÃO
-    CONFIRMADA**: as mesmas listagens mostram `fV...42 23` e `fÝ...42 24`
-    (linha2, posições 3 e 4 — adjacentes à posição 5 da tecla `%`, batendo
-    com o agrupamento visual "%T Δ% %" da foto). Mas nenhuma listagem do
-    manual usa `%T` ou `Δ%` isoladamente para confirmar de forma
-    independente QUAL rótulo sem shift ocupa essas duas posições — a
-    identificação desses dois rótulos continua apoiada na foto, não em
-    citação textual cruzada.
-  - **PRICE (`f E`) e YTM (`f S`) — NÃO CONFIRMADAS**: nenhuma listagem de
-    programa no manual usa as teclas nativas `E`/`S` (o programa de bonds
-    30/360 da p.163-166 reimplementa tudo do zero com rótulo de usuário, sem
-    tocar nessas teclas). Sem keycode para cruzar, e sem poder reabrir a foto
-    para conferência pixel a pixel, a posição física permanece **NÃO
-    CONFIRMADA**. Layout não alterado a pedido explícito do usuário.
-- **Registro de `i`**: digitado/exibido como percentual (ex.: `10` para 10%),
-  convertido para decimal internamente antes de entrar nas fórmulas do
-  Apêndice D (que definem i "expressa como decimal"). Comportamento
-  confirmado pela nota de rodapé da p.172 sobre `100000 PV` vs `100000 PV FV`.
-- ~~Bonds — convenção de registradores~~: **não é mais uma simplificação**.
-  Confirmado no texto do manual (p.66-67): cupom via `PMT`, yield via `i`,
-  liquidação=Y, vencimento=X; preço-alvo do YTM via `PV` (não `FV` — um
-  engano inicial desta implementação, corrigido na auditoria). O que
-  permanece não confirmado é apenas a POSIÇÃO FÍSICA da tecla `f`+`E`/`f`+`S`
-  no teclado (ver "Layout físico do teclado" acima).
-- **Solução iterativa de `i` e de YTM**: por bisseção, não o algoritmo do
-  firmware (não documentado publicamente). Convergem ao mesmo resultado com
-  10 dígitos significativos nos casos testados, mas não são bit-exatos ao
+  **2026-09-12 — physical position audit (SL/SOYD/DB/PRICE/YTM):**
+  the manual documents (p.91) a 2-digit "keycode" (line, position) displayed
+  for each key recorded in a program. This makes it possible to confirm position
+  **without relying on the photo**, by cross-referencing independent citations
+  within the text itself:
+
+  * **DB (`f #`) — CONFIRMED**: two program listings (pp.68-69, p.141)
+    show `f# ... 42 25`; separately, the text on p.91 explicitly states
+    that the `%` key (glyph `b`) has keycode `25` (line 2, position 5).
+    The two citations match exactly to the same key — **DB is `f` + the `%` key**,
+    independently of the photo.
+  * **SL (`f V`) and SOYD (`f Ý`) — POSITION CONFIRMED, BASE KEY NOT
+    CONFIRMED**: the same listings show `fV...42 23` and `fÝ...42 24`
+    (line 2, positions 3 and 4 — adjacent to position 5 of the `%` key,
+    matching the visual grouping "%T Δ% %" in the photo). But no listing
+    in the manual uses `%T` or `Δ%` by themselves to independently confirm
+    WHICH unshifted label occupies these two positions — identification of
+    these two labels remains supported by the photo, not by a cross-referenced
+    textual citation.
+  * **PRICE (`f E`) and YTM (`f S`) — NOT CONFIRMED**: no program listing
+    in the manual uses the native `E`/`S` keys (the 30/360 bond program on
+    pp.163-166 reimplements everything from scratch with a user-defined label,
+    without touching these keys). Without a keycode to cross-reference,
+    and without being able to reopen the photo for pixel-by-pixel verification,
+    the physical position remains **NOT CONFIRMED**. Layout was not changed
+    at the user's explicit request.
+* **`i` register**: entered/displayed as a percentage (e.g., `10` for 10%),
+  converted to decimal internally before entering the Appendix D formulas
+  (which define i "expressed as a decimal"). Behavior confirmed by the
+  footnote on p.172 regarding `100000 PV` versus `100000 PV FV`.
+* ~~**Bonds — register convention**~~: **no longer a simplification**.
+  Confirmed in the manual text (pp.66-67): coupon via `PMT`, yield via `i`,
+  settlement=Y, maturity=X; target price for YTM via `PV`
+  (not `FV` — an initial mistake in this implementation, corrected in the audit).
+  What remains unconfirmed is only the **PHYSICAL POSITION** of the
+  `f`+`E`/`f`+`S` key on the keyboard (see "Physical keyboard layout" above).
+* **Iterative solution of `i` and YTM**: by bisection, not the firmware
+  algorithm (not publicly documented). They converge to the same result with
+  10 significant digits in the tested cases, but are not bit-exact to the
   hardware.
-- **ΔDYS actual-basis**: calculado com `datetime.date` do Python em vez de
-  reimplementar a fórmula polinomial do Apêndice D, cuja correção de "anos
-  de século não são bissextos" não vem com a aritmética exata no texto
-  extraído. `datetime` já implementa o calendário gregoriano correto (o
-  mesmo alvo que a correção do manual busca), então é usado diretamente.
-- **Precisão interna**: `Decimal` de 40 dígitos de working precision por
-  operação, com arredondamento explícito para 10 dígitos significativos após
-  cada operação (mimetizando o registrador BCD de 10 dígitos do hardware,
-  não IEEE-754 binário). Isso reproduz overflow/underflow/arredondamento
-  observáveis, mas não é uma emulação bit-exata da BCD real.
+* **ΔDYS actual-basis**: calculated with Python's `datetime.date` instead of
+  reimplementing the polynomial formula from Appendix D, whose correction that
+  "century years are not leap years" is not accompanied by exact arithmetic
+  in the extracted text. `datetime` already implements the correct Gregorian
+  calendar (the same target that the manual's correction seeks), so it is
+  used directly.
+* **Internal precision**: `Decimal` with 40 digits of working precision per
+  operation, with explicit rounding to 10 significant digits after each
+  operation (mimicking the hardware's 10-digit BCD register, not binary
+  IEEE-754). This reproduces observable overflow/underflow/rounding,
+  but is not a bit-exact emulation of the real BCD.
 
-## Aferição
+## Verification
 
-Todos os 112 casos de teste são aferidos **contra o manual** (fórmulas do
-Apêndice D, exemplos do próprio texto, ou identidades matematicamente
-verificáveis como o par-bond). **Nenhum caso foi aferido contra uma HP-12C
-física.** Não declaro "100% compatível" — apenas "consistente com a
-especificação documental do fabricante nos pontos testados". Se/quando o
-usuário fornecer saídas de um aparelho real, essas se tornam a referência
-prioritária (ver política de divergência em `docs/ANALYSIS.md`).
+All 112 test cases are verified **against the manual** (Appendix D formulas,
+examples from the text itself, or mathematically verifiable identities such as
+the par-bond). **No case has been verified against a physical HP-12C.** I do not
+claim "100% compatible" — only "consistent with the manufacturer's
+documentary specification at the points tested". If/when the user provides
+outputs from a real device, those become the primary reference (see discrepancy
+policy in `docs/ANALYSIS.md`).
 
-## Divergências conhecidas e não resolvidas
+## Known Unresolved Discrepancies
 
-Nenhuma no momento — toda discrepância encontrada durante o desenvolvimento
-(ver histórico de commits/checkpoints) foi investigada e corrigida na
-implementação, nunca "resolvida" ajustando o valor esperado sem justificativa
-documental.
+None at the moment — every discrepancy found during development
+(see commit/checkpoint history) was investigated and corrected in the
+implementation, never "resolved" by adjusting the expected value without
+documentary justification.
