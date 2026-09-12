@@ -1,301 +1,304 @@
-# Análise pré-implementação — HP-12C Classic
+# Pre-implementation analysis — HP-12C Classic
 
-Fonte primária: *hp 12c financial calculator user's guide*, Edition 4, HP Part Number
-0012C-90001 (manual oficial linkado pelo usuário, extraído e lido página a página).
-Todas as regras abaixo foram confirmadas no texto do manual, não em memória genérica de
-"calculadora financeira". Onde o manual é omisso, isso é declarado explicitamente.
+Primary source: *hp 12c financial calculator user's guide*, Edition 4, HP Part Number
+0012C-90001 (official manual linked by the user, extracted and read page by page).
+All rules below were confirmed in the manual's own text, not from generic
+"financial calculator" memory. Where the manual is silent, this is stated explicitly.
 
-## 1. Inventário de teclas (mapa físico → função)
+## 1. Key inventory (physical map → function)
 
-> **DESATUALIZADO — não use esta tabela como referência de layout.** Ela é o
-> registro histórico da análise *pré-implementação*, feita a partir do texto do
-> manual antes de existir uma foto medida do aparelho. Vários posicionamentos
-> aqui estão errados (ela atribui CLEAR REG/FIN/PRGM a `f 7/8/9`, AMORT a
-> `f 1`, NPV a `f 3`, x≤y ao `÷`...). O layout real foi estabelecido depois por
-> medição direta do arquivo de referência `hp12c.png` e vive em
-> `src/hp12c/engine.py` (`F_SHIFT`/`G_SHIFT`) + `src/ui/app.py`. As *regras de
-> comportamento* das seções 2 em diante seguem válidas — só este mapa de
-> posições foi superado. Verificado na auditoria funcional de 2026-09-12.
+> **OUTDATED — do not use this table as a layout reference.** It is the
+> historical record of the *pre-implementation* analysis, made from the
+> manual's text before a measured photo of the device existed. Several
+> positions here are wrong (it assigns CLEAR REG/FIN/PRGM to `f 7/8/9`, AMORT
+> to `f 1`, NPV to `f 3`, x≤y to `÷`...). The real layout was established
+> later by direct measurement of the reference file `hp12c.png` and lives in
+> `src/hp12c/engine.py` (`F_SHIFT`/`G_SHIFT`) + `src/ui/app.py`. The
+> *behavior rules* from section 2 onward remain valid — only this position
+> map has been superseded. Verified in the 2026-09-12 functional audit.
 
-| Tecla física | Direto | `f` (dourado) | `g` (azul) |
+| Physical key | Direct | `f` (gold) | `g` (blue) |
 |---|---|---|---|
-| `n` | n (períodos) | — | 12× (n = 12·x, vai para reg. n) |
-| `i` | i (taxa) | — | 12÷ (i = x/12, vai para reg. i) |
-| `PV` | PV | — | CFo (fluxo de caixa inicial) |
-| `PMT` | PMT | — | CFj (fluxo de caixa j) |
-| `FV` | FV | — | Nj (nº de repetições do fluxo) |
-| `CHS` | troca sinal | — | — |
+| `n` | n (periods) | — | 12× (n = 12·x, goes to n reg.) |
+| `i` | i (rate) | — | 12÷ (i = x/12, goes to i reg.) |
+| `PV` | PV | — | CFo (initial cash flow) |
+| `PMT` | PMT | — | CFj (cash flow j) |
+| `FV` | FV | — | Nj (number of flow repetitions) |
+| `CHS` | sign change | — | — |
 | `7` | 7 | CLEAR REG | — |
 | `8` | 8 | CLEAR FIN | — |
 | `9` | 9 | CLEAR PRGM | — |
-| `÷` | ÷ | — | x≤y / testes condicionais (programação) |
-| `4` `5` `6` | dígitos | — | — |
+| `÷` | ÷ | — | x≤y / conditional tests (programming) |
+| `4` `5` `6` | digits | — | — |
 | `×` | × | — | — |
-| `1` | 1 | AMORT | INT (juros simples) |
+| `1` | 1 | AMORT | INT (simple interest) |
 | `2` | 2 | %T | %Δ |
 | `3` | 3 | NPV | IRR |
-| `-` `+` | aritmética | — | — |
+| `-` `+` | arithmetic | — | — |
 | `RCL` | RCL | — | — |
 | `STO` | STO | — | — |
 | `EEX` | EEX | — | — |
 | `CLx` | Clear X | — | — |
-| `÷ family` (Σ+, R↓, x≷y, ENTER) | conforme legenda | ver abaixo | ver abaixo |
+| `÷ family` (Σ+, R↓, x≷y, ENTER) | as labeled | see below | see below |
 | `ENTER` | ENTER↑ | — | LSTx |
-| `x≷y` | troca X/Y | — | — |
+| `x≷y` | swap X/Y | — | — |
 | `R↓` | roll down | — | — |
-| `Σ+` | acumula estatística | — | Σ- (remove) |
-| `1/x` | recíproco | — | — |
-| `√x` | raiz | — | — |
-| `y^x` | potência | — | — |
-| `%` | x% de y | — | — |
-| `.` | ponto decimal | FIX (casas decimais) | — |
-| `Σ+`..`E` (labels A-E) | rótulos de programa | — | GTO destino |
-| `R/S` | run/stop programa | — | P/R (programa/execução) |
-| `GTO` | vai para linha | — | mapa de memória (`g MEM`) |
-| `f` | prefixo dourado | — | — |
-| `g` | prefixo azul | — | — |
-| `ON` | liga/desliga | — | — |
+| `Σ+` | accumulates statistics | — | Σ- (removes) |
+| `1/x` | reciprocal | — | — |
+| `√x` | root | — | — |
+| `y^x` | power | — | — |
+| `%` | x% of y | — | — |
+| `.` | decimal point | FIX (decimal places) | — |
+| `Σ+`..`E` (labels A-E) | program labels | — | GTO destination |
+| `R/S` | run/stop program | — | P/R (program/run) |
+| `GTO` | goes to line | — | memory map (`g MEM`) |
+| `f` | gold prefix | — | — |
+| `g` | blue prefix | — | — |
+| `ON` | on/off | — | — |
 
-Funções `f`/`g` adicionais relevantes: `f 0-9` = casas decimais fixas (FIX);
-`f .` = notação científica (SCI); `f CLx` (mantido pressionado) = mostra mantissa
-completa de 10 dígitos; `g D.MY` / `g M.DY` = formato de data; `g BEG` / `f END`
-(nomes reais: `g 7`=BEG, `f 8` na verdade é END — confirmado via Function Key Index,
-ver `E`/BEG glyphs) = modo de pagamento antecipado/postecipado.
+Additional relevant `f`/`g` functions: `f 0-9` = fixed decimal places (FIX);
+`f .` = scientific notation (SCI); `f CLx` (held down) = shows the full
+10-digit mantissa; `g D.MY` / `g M.DY` = date format; `g BEG` / `f END`
+(real names: `g 7`=BEG, `f 8` is actually END — confirmed via the Function
+Key Index, see `E`/BEG glyphs) = advance/arrears payment mode.
 
-## 2. Estados da máquina
+## 2. Machine states
 
-- **Ligado/Desligado**: memória contínua preserva stack, registradores, programa,
-  formato de display, formato de data, modo de pagamento.
-- **Reset de memória contínua**: (a) automático se energia interrompida — mostra
-  `Pr Error` ao ligar; (b) manual: desligado, segurar `-`, pressionar `ON`.
-  Resultado: todos os registradores zerados; programa = 8 linhas `GTO 00`;
-  display = padrão 2 casas; data = M.DY; pagamento = End.
-- **Run mode vs Program mode**: `f P/R` alterna. Ao voltar para Run, ponteiro de
-  programa volta para linha 00.
-- **Erro**: qualquer tecla limpa a mensagem de erro e restaura o estado anterior à
-  operação (não executa a função da tecla que limpou o erro).
-- **CLEAR x / CLEAR REG / CLEAR FIN / CLEAR Σ / CLEAR PRGM / CLEAR PREFIX**: são
-  operações independentes, cada uma limpando um subconjunto diferente — **nunca
-  assumir que uma limpa as outras** (requisito explícito do usuário, confirmado
-  pelo manual: CLEAR REG não apaga o programa; CLx não apaga registradores).
+- **On/Off**: continuous memory preserves the stack, registers, program,
+  display format, date format, payment mode.
+- **Continuous memory reset**: (a) automatic if power was interrupted — shows
+  `Pr Error` on power-up; (b) manual: powered off, hold `-`, press `ON`.
+  Result: all registers zeroed; program = 8 lines of `GTO 00`;
+  display = default 2 places; date = M.DY; payment = End.
+- **Run mode vs Program mode**: `f P/R` toggles. When returning to Run, the
+  program pointer goes back to line 00.
+- **Error**: any key clears the error message and restores the state prior to
+  the operation (it does not execute the function of the key that cleared the error).
+- **CLEAR x / CLEAR REG / CLEAR FIN / CLEAR Σ / CLEAR PRGM / CLEAR PREFIX**: these
+  are independent operations, each clearing a different subset — **never
+  assume that one clears the others** (explicit user requirement, confirmed
+  by the manual: CLEAR REG does not erase the program; CLx does not erase registers).
 
-## 3. Pilha RPN (Appendix A — fonte primária, não paráfrase)
+## 3. RPN stack (Appendix A — primary source, not a paraphrase)
 
-Registradores: X (display), Y, Z, T, mais LAST X (não é pilha, é retenção).
+Registers: X (display), Y, Z, T, plus LAST X (not a stack register, it is a holding register).
 
-Regras exatas:
-1. `ENTER↑`: copia X→Y (stack lift), termina entrada de dígitos. Pilha sempre sobe.
-2. **Stack lift é suprimido** (o próximo número digitado substitui X em vez de
-   empurrar a pilha) se a última tecla pressionada foi uma destas 6: `ENTER↑`,
-   `CLx`, `Σ+`, `Σ-`, `12×`, `12÷`. (As duas últimas são específicas do 12C —
-   ambas armazenam diretamente em registrador financeiro, mesma razão pela qual
-   armazenar em registrador financeiro via `STO n/i/PV/PMT/FV` também suprime o
-   próximo lift.)
-3. **Funções de 1 número** (1/x, √x, LN, e^x, n!, RND, INTG, FRAC, CHS): operam só
-   em X, resultado vai para X, X anterior vai para LAST X, pilha **não** dropa
-   (Y/Z/T inalterados).
-4. **Funções de 2 números** (+, −, ×, ÷, y^x): usam X e Y, resultado em X, X
-   anterior → LAST X, pilha **dropa** (Z→Y, T→Z e T permanece — permite constante).
-5. **Funções de porcentagem** (%, Δ%, %T): resultado em X, X anterior → LAST X,
-   pilha **não dropa nem sobe** — Y/Z/T inalterados. Isso é diferente de uma função
-   binária normal.
-6. **Funções financeiras/calendário quando calculam** (n, i, PV, PMT, FV, NPV, IRR,
-   DATE, ΔDYS, INT, PRICE, YTM, DEP): cada uma tem efeito próprio documentado numa
-   tabela específica (ver Appendix A) — não seguem a regra binária genérica.
-7. `x≷y`: troca X↔Y, não mexe em Z/T, não é lift nem drop.
-8. `R↓`: rotaciona X→T, T→Z, Z→Y, Y→X (para baixo circular).
-9. `LSTx` (`g` + ENTER): lift da pilha (a menos que a tecla anterior suprima lift),
-   copia LAST X para X.
+Exact rules:
+1. `ENTER↑`: copies X→Y (stack lift), terminates digit entry. The stack always lifts.
+2. **Stack lift is suppressed** (the next number entered replaces X instead of
+   pushing the stack) if the last key pressed was one of these 6: `ENTER↑`,
+   `CLx`, `Σ+`, `Σ-`, `12×`, `12÷`. (The last two are specific to the 12C —
+   both store directly into a financial register, the same reason storing
+   into a financial register via `STO n/i/PV/PMT/FV` also suppresses the
+   next lift.)
+3. **One-number functions** (1/x, √x, LN, e^x, n!, RND, INTG, FRAC, CHS): operate
+   only on X, the result goes into X, the previous X goes to LAST X, the stack
+   does **not** drop (Y/Z/T unchanged).
+4. **Two-number functions** (+, −, ×, ÷, y^x): use X and Y, result in X, previous
+   X → LAST X, the stack **drops** (Z→Y, T→Z, and T remains — allowing a constant).
+5. **Percentage functions** (%, Δ%, %T): result in X, previous X → LAST X,
+   the stack **neither drops nor lifts** — Y/Z/T unchanged. This differs from a
+   normal binary function.
+6. **Financial/calendar functions when computing** (n, i, PV, PMT, FV, NPV, IRR,
+   DATE, ΔDYS, INT, PRICE, YTM, DEP): each has its own effect documented in a
+   specific table (see Appendix A) — they do not follow the generic binary rule.
+7. `x≷y`: swaps X↔Y, does not touch Z/T, is neither a lift nor a drop.
+8. `R↓`: rotates X→T, T→Z, Z→Y, Y→X (circular downward).
+9. `LSTx` (`g` + ENTER): lifts the stack (unless the previous key suppresses lift),
+   copies LAST X into X.
 
-## 4. Formatos de display
+## 4. Display formats
 
-- Padrão de fábrica / após reset: **Standard**, 2 casas decimais.
-- `f 0`–`f 9`: Standard com N casas decimais (arredondamento *display-only*,
-  **o valor interno de 10 dígitos não muda**, exceto quando a própria tecla é
-  uma das que arredondam de fato o valor interno: `f RND`, `AMORT`, `SL`, `SOYD`,
-  `DB`).
-- Regra de arredondamento: dígito seguinte 5–9 arredonda para cima; 0–4 trunca
-  (round-half-up, não banker's rounding).
-- `f .`: notação científica — mantissa de 7 dígitos significativos + expoente de
-  2 dígitos com sinal (espaço = positivo, `-` = negativo).
-- **Não existe modo ENG (engenharia) no 12C Classic** — busquei "ENG" no manual
-  completo (211 páginas) e não há nenhuma ocorrência. Isso é uma feature de
-  outras calculadoras HP (15C/16C) ou de suítes financeiras genéricas, não do
-  12C. **Marcarei como NOT IMPLEMENTED** em vez de inventar um modo que não existe
-  no hardware alvo.
-- Overflow: |resultado| > 9.999999999×10^99 → cálculo é interrompido e mostra
-  ±9.999999999 99 (não é "Error", é clamp).
-- Underflow: |resultado| < 10^-99 (≠0) → valor tratado como 0, cálculo continua
-  normalmente (sem interrupção).
-- `f CLx` mantido pressionado: mostra mantissa completa (10 dígitos) enquanto
-  pressionado.
-- Separador decimal ponto/vírgula: alternável (recurso documentado de hardware via
-  segurar `.` ao ligar) — baixa prioridade, implementar se sobrar tempo.
+- Factory default / after reset: **Standard**, 2 decimal places.
+- `f 0`–`f 9`: Standard with N decimal places (*display-only* rounding,
+  **the internal 10-digit value does not change**, except when the key
+  itself is one of the ones that actually round the internal value: `f RND`,
+  `AMORT`, `SL`, `SOYD`, `DB`).
+- Rounding rule: next digit 5–9 rounds up; 0–4 truncates
+  (round-half-up, not banker's rounding).
+- `f .`: scientific notation — 7-significant-digit mantissa + signed
+  2-digit exponent (space = positive, `-` = negative).
+- **There is no ENG (engineering) mode on the 12C Classic** — I searched "ENG" in
+  the full manual (211 pages) and there is no occurrence. This is a feature of
+  other HP calculators (15C/16C) or of generic financial suites, not the
+  12C. **I will mark it as NOT IMPLEMENTED** rather than inventing a mode that
+  does not exist on the target hardware.
+- Overflow: |result| > 9.999999999×10^99 → the calculation is stopped and shows
+  ±9.999999999 99 (this is not an "Error", it is a clamp).
+- Underflow: |result| < 10^-99 (≠0) → the value is treated as 0, the calculation
+  continues normally (no interruption).
+- `f CLx` held down: shows the full mantissa (10 digits) while
+  held.
+- Decimal separator period/comma: switchable (hardware feature documented via
+  holding `.` while powering on) — low priority, implement if time allows.
 
-## 5. Funções financeiras (Appendix D — fórmulas oficiais)
+## 5. Financial functions (Appendix D — official formulas)
 
-- **TVM sem período fracionário**:
-  `PV·(1+i)^n + PMT·(1+i·S)·[(1+i)^n − 1]/i + FV = 0`, S=1 (Begin) ou 0 (End).
-- **TVM com período fracionário (odd period)**: duas variantes documentadas —
-  juros simples no período fracionário, ou juros compostos no período fracionário
-  — fórmulas distintas envolvendo INTG(n)/FRAC(n). O 12C físico decide qual usar
-  conforme o contexto (não fica 100% explícito no manual qual é o padrão da tecla
-  simples `n`/`i`/`PV`/`PMT`/`FV`; vou implementar a versão sem período
-  fracionário como caminho principal, testado, e marcar odd-period como
-  **NOT VERIFIED** até haver fixtures de hardware real).
-- **Solução iterativa de `i`**: o manual não publica o algoritmo exato de
-  convergência do firmware. Implementarei Newton-Raphson com fallback de bisseção,
-  documentado como **não bit-exato ao firmware**, mas convergente ao mesmo
-  resultado (10 dígitos significativos) nos casos testáveis.
-- **n é sempre arredondado para cima** para o próximo inteiro (documentado
-  explicitamente).
-- **Amortização** (`f n` = AMORT, CONFIRMADO p.54-55): `INT₁ = |PV₀·i|_RND ·
-  sinal(PMT)` (ou 0 se j=1 e Begin), `PRN = PMT − INT`, `PV_novo = PV + PRN`.
-  **O arredondamento `_RND` é para as CASAS DECIMAIS DO DISPLAY ATUAL (ex.: 2),
-  não para 10 dígitos significativos** — validado bit-a-bit contra o exemplo
-  do manual (hipoteca de 25 anos, 13.25%, $50.000, PMT=-573.35: ano 1 =
-  -6.608,89/-271,31; ano 2 = -6.570,72/-309,48). O registrador `n`
-  **ACUMULA** períodos amortizados (começa em 0 após CLEAR FIN, soma a cada
-  chamada) — confirmado pelo próprio manual (":n 12.00 Total number of
-  payments amortized" após amortizar 12 períodos, não um termo decrescente).
-  Registradores de saída: X=INT, Y=PRN, Z=X-anterior(contagem), T=Y-anterior
-  (Apêndice A p.175, não é um lift genérico).
-- **Juros simples** (`f i` = INT, CONFIRMADO p.33-34): `n` é NÚMERO DE DIAS
-  (não anos), `i` é a taxa ANUAL. `I360 = n·(−PV)·i/360`, `I365 =
-  n·(−PV)·i/365` — o `−PV` (não `PV`) é necessário porque o principal é
-  guardado negativo (convenção de sinal) mas o juro exibido é positivo;
-  validado bit-a-bit contra o exemplo do manual ($450, 60 dias, 7% →
-  5,25/5,18). Registradores de saída: X=INT360, Y=−PV, Z=INT365, T=X-anterior
-  — confirmado tanto pela tabela do Apêndice A quanto pela sequência real
-  "f INT R↓ x≷y" do manual para ver a base de 365 dias.
-- **NPV**: soma de CFj/(1+i)^j, j=0..n, suporta Nj (repetições) até 20 fluxos
-  distintos armazenados.
-- **IRR**: raiz de NPV(i)=0. Erro 3 = não converge; Erro 7 = não há mudança de
-  sinal nos fluxos (sem solução).
-- **Bonds** (`f` + tecla não identificada = PRICE/YTM, shift CONFIRMADO
-  p.66-67, tecla física NÃO CONFIRMADA): yield via `i`, cupom via `PMT`,
-  liquidação=Y, vencimento=X. PRICE grava o resultado também no registrador
-  `PV` (confirmado: "shown in the display and also is stored in the PV
-  register"); juros acumulados ficam em Y (via x≷y). YTM lê o preço-alvo do
-  registrador `PV` (não `FV` — corrigido de um engano inicial) e grava o
-  resultado em `i`. Validado bit-a-bit/display contra os dois exemplos do
-  manual (yield 8.25%→preço 87.62/90.31; preço 88.375→yield 8.15%).
-- **Depreciação** (`f` + tecla não identificada = SL/SOYD/DB, shift
-  CONFIRMADO p.68 "fV"/"fÝ"/"f#", tecla física NÃO CONFIRMADA): custo via
-  `PV`, valor residual via `FV`, vida útil via `n`, fator (DB) via `i`
-  (percentual); só o número do ano é digitado direto em X. Fórmulas de tecla,
-  sem período parcial: SL: `DPN=(SBV−SAL)/L`. SOYD: `DPN=(L−j+1)/SOYD·(SBV−SAL)`,
-  `SOYD=W(W+1)/2+WF`. DB: `DPNⱼ=RBVⱼ₋₁·FACT/100/L`, com `RBV` persistido no
-  registrador `PV` entre chamadas (mesmo padrão da amortização). Saída:
-  X=DPN, Y=RDV (valor residual **menos** valor de salvamento, não o valor
-  contábil puro). Validado bit-a-bit contra o exemplo do manual de
-  declining-balance (custo 10.000/salvamento 500/vida 5/fator 200%: anos 1-3
-  = 4.000/2.400/1.440, RDV = 5.500/3.100/1.660).
-- **Conversão de taxas**: `EFF=(1+NOM/C)^C−1` (composição finita),
-  `EFF=e^NOM−1` (contínua) — presentes no apêndice, teclas dedicadas não
-  claramente identificadas no Function Key Index; implementar como utilitário,
-  marcar acesso via tecla como NOT VERIFIED.
+- **TVM without a fractional period**:
+  `PV·(1+i)^n + PMT·(1+i·S)·[(1+i)^n − 1]/i + FV = 0`, S=1 (Begin) or 0 (End).
+- **TVM with a fractional period (odd period)**: two documented variants —
+  simple interest over the fractional period, or compound interest over the
+  fractional period — distinct formulas involving INTG(n)/FRAC(n). The
+  physical 12C decides which to use depending on context (the manual is not
+  100% explicit about which is the default for the plain `n`/`i`/`PV`/`PMT`/`FV`
+  key; I will implement the version without a fractional period as the
+  main path, tested, and mark odd-period as
+  **NOT VERIFIED** until real hardware fixtures exist).
+- **Iterative solution of `i`**: the manual does not publish the firmware's exact
+  convergence algorithm. I will implement Newton-Raphson with a bisection fallback,
+  documented as **not bit-exact to the firmware**, but converging to the same
+  result (10 significant digits) in the testable cases.
+- **n is always rounded up** to the next integer (explicitly
+  documented).
+- **Amortization** (`f n` = AMORT, CONFIRMED p.54-55): `INT₁ = |PV₀·i|_RND ·
+  sign(PMT)` (or 0 if j=1 and Begin), `PRN = PMT − INT`, `new PV = PV + PRN`.
+  **The `_RND` rounding is to the CURRENT DISPLAY'S DECIMAL PLACES (e.g., 2),
+  not to 10 significant digits** — validated bit-for-bit against the manual's
+  own example (25-year mortgage, 13.25%, $50,000, PMT=-573.35: year 1 =
+  -6,608.89/-271.31; year 2 = -6,570.72/-309.48). The `n` register
+  **ACCUMULATES** amortized periods (starts at 0 after CLEAR FIN, adds on each
+  call) — confirmed by the manual itself (":n 12.00 Total number of
+  payments amortized" after amortizing 12 periods, not a decreasing term).
+  Output registers: X=INT, Y=PRN, Z=previous X (count), T=previous Y
+  (Appendix A p.175, not a generic lift).
+- **Simple interest** (`f i` = INT, CONFIRMED p.33-34): `n` is the NUMBER OF DAYS
+  (not years), `i` is the ANNUAL rate. `I360 = n·(−PV)·i/360`, `I365 =
+  n·(−PV)·i/365` — the `−PV` (not `PV`) is necessary because the principal is
+  stored negative (sign convention) but the interest shown is positive;
+  validated bit-for-bit against the manual's example ($450, 60 days, 7% →
+  5.25/5.18). Output registers: X=INT360, Y=−PV, Z=INT365, T=previous X
+  — confirmed both by the Appendix A table and by the manual's own
+  "f INT R↓ x≷y" sequence for viewing the 365-day basis.
+- **NPV**: sum of CFj/(1+i)^j, j=0..n, supports Nj (repetitions) up to 20 stored
+  distinct flows.
+- **IRR**: root of NPV(i)=0. Error 3 = does not converge; Error 7 = no sign
+  change in the flows (no solution).
+- **Bonds** (`f` + unidentified key = PRICE/YTM, shift CONFIRMED
+  p.66-67, physical key NOT CONFIRMED): yield via `i`, coupon via `PMT`,
+  settlement=Y, maturity=X. PRICE also writes the result into the `PV`
+  register (confirmed: "shown in the display and also is stored in the PV
+  register"); accrued interest is left in Y (via x≷y). YTM reads the
+  target price from the `PV` register (not `FV` — corrected from an
+  initial mistake) and writes the result into `i`. Validated
+  bit-for-bit/display against the manual's two examples (yield 8.25%→price
+  87.62/90.31; price 88.375→yield 8.15%).
+- **Depreciation** (`f` + unidentified key = SL/SOYD/DB, shift
+  CONFIRMED p.68 "fV"/"fÝ"/"f#", physical key NOT CONFIRMED): cost via
+  `PV`, salvage value via `FV`, useful life via `n`, factor (DB) via `i`
+  (percentage); only the year number is keyed directly into X. Keystroke
+  formulas, no partial period: SL: `DPN=(SBV−SAL)/L`. SOYD: `DPN=(L−j+1)/SOYD·(SBV−SAL)`,
+  `SOYD=W(W+1)/2+WF`. DB: `DPNⱼ=RBVⱼ₋₁·FACT/100/L`, with `RBV` persisted in the
+  `PV` register between calls (same pattern as amortization). Output:
+  X=DPN, Y=RDV (remaining value **minus** salvage value, not the pure book
+  value). Validated bit-for-bit against the manual's declining-balance
+  example (cost 10,000/salvage 500/life 5/factor 200%: years 1-3 =
+  4,000/2,400/1,440, RDV = 5,500/3,100/1,660).
+- **Rate conversion**: `EFF=(1+NOM/C)^C−1` (finite compounding),
+  `EFF=e^NOM−1` (continuous) — present in the appendix, dedicated keys not
+  clearly identified in the Function Key Index; implement as a utility,
+  mark key-based access as NOT VERIFIED.
 
-## 6. Calendário
+## 6. Calendar
 
-- **Base Actual**: `ΔDYS = f(DT2) − f(DT1)`, onde
-  `f(DT) = 365·ano + 31·(mês−1) + dia + INTG(z/4) − x`, com regra de ano
-  bissexto por século (século múltiplo de 100 não é bissexto, exceto múltiplo de
-  400 — nota do manual: "century (but not millennium) years are not considered
-  leap years", ou seja, replica o calendário Gregoriano padrão).
-- **Base 30/360**: fórmula própria com regras de dia 31 tratado como 30 —
-  documentada exatamente no Appendix D.
-- Formatos D.MY / M.DY selecionáveis via `g` shift, não programável.
-- Erro 8: formato de data inválido, ou (para DATE) ultrapassa capacidade da
-  calculadora, ou (bonds) mais de 500 anos entre datas / vencimento antes de
-  liquidação / vencimento sem cupom correspondente 6 meses antes (regra especial
-  para dia 29/30/31 de certos meses).
+- **Actual basis**: `ΔDYS = f(DT2) − f(DT1)`, where
+  `f(DT) = 365·year + 31·(month−1) + day + INTG(z/4) − x`, with the
+  per-century leap-year rule (a century year that is a multiple of 100 is not
+  a leap year, except when it is also a multiple of 400 — manual's note:
+  "century (but not millennium) years are not considered leap years", i.e., it
+  replicates the standard Gregorian calendar).
+- **30/360 basis**: its own formula with day-31-treated-as-30 rules —
+  documented exactly in Appendix D.
+- D.MY / M.DY formats selectable via `g` shift, not programmable.
+- Error 8: invalid date format, or (for DATE) exceeds the calculator's
+  capacity, or (bonds) more than 500 years between dates / maturity before
+  settlement / maturity with no matching coupon 6 months earlier (special
+  rule for day 29/30/31 of certain months).
 
-## 7. Estatística
+## 7. Statistics
 
-Registradores R1..R6 = n, Σx, Σy, Σx², Σy², Σxy (confirmado pela condição de
-Erro 2, que referencia exatamente essas somas).
-- Média: `x̄=Σx/n`, `ȳ=Σy/n`.
-- Média ponderada: `x̄w = Σ(peso·item)/Σpeso`. Convenção CONFIRMADA pelo
-  exemplo do manual (p.81-82, "item ENTER peso Σ+"): X=peso, Y=item no
-  momento do Σ+, logo `Σx=Σpeso`, `Σy=Σitem`, `Σxy=Σ(peso·item)`, e
-  `x̄w=Σxy/Σx` (não `/Σy` — uma versão anterior desta análise tinha a
-  convenção invertida; corrigido e validado bit-a-bit contra o exemplo dos
-  4 postos de gasolina, resultado 1.19/galão).
-- Desvio padrão amostral: `sx=√[(nΣx²−(Σx)²)/(n(n−1))]` (mesmo para y). Requer
-  n≥2 (Erro 2 se n≤1 ou termo negativo por cancelamento numérico).
-- Regressão linear: `ŷ=A+Bx`, `B=(nΣxy−ΣxΣy)/(nΣx²−(Σx)²)`, `A=ȳ−Bx̄`;
-  inverso `x̂=(y−A)/B`; coeficiente de correlação `r` com fórmula própria
-  (raiz de produto de variâncias).
+Registers R1..R6 = n, Σx, Σy, Σx², Σy², Σxy (confirmed by the Error 2
+condition, which references exactly these sums).
+- Mean: `x̄=Σx/n`, `ȳ=Σy/n`.
+- Weighted mean: `x̄w = Σ(weight·item)/Σweight`. Convention CONFIRMED by the
+  manual's example (p.81-82, "item ENTER weight Σ+"): X=weight, Y=item at
+  the moment of Σ+, hence `Σx=Σweight`, `Σy=Σitem`, `Σxy=Σ(weight·item)`, and
+  `x̄w=Σxy/Σx` (not `/Σy` — an earlier version of this analysis had the
+  convention inverted; corrected and validated bit-for-bit against the
+  4-gas-station example, result 1.19/gallon).
+- Sample standard deviation: `sx=√[(nΣx²−(Σx)²)/(n(n−1))]` (same for y). Requires
+  n≥2 (Error 2 if n≤1 or a negative term from numeric cancellation).
+- Linear regression: `ŷ=A+Bx`, `B=(nΣxy−ΣxΣy)/(nΣx²−(Σx)²)`, `A=ȳ−Bx̄`;
+  inverse `x̂=(y−A)/B`; correlation coefficient `r` with its own formula
+  (root of a product of variances).
 
-## 8. Memória e registradores
+## 8. Memory and registers
 
-- Registradores de dados: `R0`–`R9` e `R.0`–`R.9` (20 no total, default).
-- `STO`/`RCL` aceitam registrador direto, aritmética de registrador
-  (`STO +/-/×/÷ n`), e registradores financeiros como destino.
-- Erro 4/6: aritmética de registrador não é permitida em `R5`-`R9`/`R.0`-`R.9`
-  quando parte deles foi convertida em linhas de programa; registrador
-  inexistente ou convertido → Erro 6.
-- `CLEAR REG`: zera X,Y,Z,T + todos storage + estatística + financeiros (mas
-  **não** programa).
-- `CLEAR FIN`: zera apenas registradores financeiros (n,i,PV,PMT,FV).
-- `CLEAR Σ`: zera R1-R6 + stack.
-- `CLEAR PRGM`: reseta memória de programa a 8 linhas `GTO 00`, não mexe em dados.
+- Data registers: `R0`–`R9` and `R.0`–`R.9` (20 total, default).
+- `STO`/`RCL` accept a direct register, register arithmetic
+  (`STO +/-/×/÷ n`), and financial registers as a target.
+- Error 4/6: register arithmetic is not allowed on `R5`-`R9`/`R.0`-`R.9`
+  when part of them has been converted into program lines; a nonexistent
+  or converted register → Error 6.
+- `CLEAR REG`: zeroes X,Y,Z,T + all storage + statistics + financial
+  registers (but **not** the program).
+- `CLEAR FIN`: zeroes only the financial registers (n,i,PV,PMT,FV).
+- `CLEAR Σ`: zeroes R1-R6 + the stack.
+- `CLEAR PRGM`: resets program memory to 8 lines of `GTO 00`, does not touch data.
 
-## 9. Programação
+## 9. Programming
 
-- Memória total combinável: **8 linhas de programa fixas** + **20 registradores
-  de dados**, com conversão dinâmica: a cada bloco de 7 instruções além da 8ª, o
-  **último registrador de dados disponível** (começando por `R.9`) é convertido
-  em 7 novas linhas de programa (perdendo o dado nele armazenado).
-- Máximo: **99 linhas de programa**, consumindo 13 registradores
-  (`8 + 13×7 = 99`), sobrando `R0`-`R6` (7 registradores) para dados.
-- Linha 00 contém instrução oculta de "halt"; linhas vazias contêm `GTO 00`.
-- `f P/R`: alterna Program↔Run; ao voltar a Run, ponteiro vai para linha 00.
-- `R/S`: roda/pausa a partir da linha atual.
-- `GTO nn`: desvia para linha; rótulos `0`-`9`, `.0`-`.9`, `A`-`E` também servem
-  como destino de `GTO`/chamada implícita.
-- Testes condicionais (`x≤y`,`x=0`, etc. sob tecla dedicada com sufixo 0-9):
-  pula a próxima linha se falso — implementarei o conjunto completo (`x=0`,
+- Total combinable memory: **8 fixed program lines** + **20 data
+  registers**, with dynamic conversion: for every block of 7 instructions
+  beyond the 8th, the **last available data register** (starting from
+  `R.9`) is converted into 7 new program lines (losing the data stored in it).
+- Maximum: **99 program lines**, consuming 13 registers
+  (`8 + 13×7 = 99`), leaving `R0`-`R6` (7 registers) for data.
+- Line 00 contains a hidden "halt" instruction; empty lines contain `GTO 00`.
+- `f P/R`: toggles Program↔Run; when returning to Run, the pointer goes to line 00.
+- `R/S`: runs/pauses from the current line.
+- `GTO nn`: branches to a line; labels `0`-`9`, `.0`-`.9`, `A`-`E` also serve
+  as a `GTO`/implicit-call target.
+- Conditional tests (`x≤y`,`x=0`, etc. under a dedicated key with a 0-9 suffix):
+  skip the next line if false — I will implement the complete set (`x=0`,
   `x≠0`, `x>0`, `x<0`, `x≥0`, `x≤0`, `x=y`, `x≠y`, `x>y`, `x<y`, `x≥y`, `x≤y`).
-- Erro 4: mais de 99 linhas, ou `GTO` para linha inexistente.
+- Error 4: more than 99 lines, or `GTO` to a nonexistent line.
 
-## 10. Erros (Appendix C — completo, 10 categorias)
+## 10. Errors (Appendix C — complete, 10 categories)
 
-Erro 0 Matemática (÷0, ln(x≤0), √(x<0), y^x inválido, x! não-inteiro/negativo,
-etc.) · Erro 1 Overflow de registrador de armazenamento (aritmética STO
-resultando em |valor|>9.999999999e99) · Erro 2 Estatística (n=0, Σx=0 onde
-necessário, termo de variância negativo, n≤1 para desvio padrão) · Erro 3 IRR
-sem convergência · Erro 4 Memória (>99 linhas, GTO inválido, aritmética de
-registrador inválida) · Erro 5 Juros compostos (condições sem solução —
-PMT≤−PV·i, i≤−100%, etc.) · Erro 6 Registradores de armazenamento inexistentes/
-convertidos · Erro 7 IRR sem mudança de sinal nos fluxos · Erro 8 Calendário
-(data/formato inválido, excede capacidade, regras de cupom) · Erro 9 Serviço
-(falha de hardware/autoteste — não aplicável a um simulador; vou mapear para
-uma condição informativa apenas).
+Error 0 Math (÷0, ln(x≤0), √(x<0), invalid y^x, non-integer/negative x!,
+etc.) · Error 1 Storage-register overflow (STO arithmetic resulting in
+|value|>9.999999999e99) · Error 2 Statistics (n=0, Σx=0 where
+needed, a negative variance term, n≤1 for standard deviation) · Error 3 IRR
+does not converge · Error 4 Memory (>99 lines, invalid GTO, invalid
+register arithmetic) · Error 5 Compound interest (conditions with no
+solution — PMT≤−PV·i, i≤−100%, etc.) · Error 6 Nonexistent/converted
+storage registers · Error 7 IRR with no sign change in the flows · Error 8 Calendar
+(invalid date/format, exceeds capacity, coupon rules) · Error 9 Service
+(hardware/self-test failure — not applicable to a simulator; I will map it
+to a merely informational condition).
 
-## 11. Plano de testes (`tests/hp12c-reference.json`)
+## 11. Test plan (`tests/hp12c-reference.json`)
 
-Categorias obrigatórias A–J do briefing, com casos derivados diretamente dos
-exemplos do próprio manual sempre que disponíveis (essas sequências e resultados
-JÁ SÃO a referência oficial — quando o usuário fornecer resultados de hardware
-físico, estes serão tratados como fixtures adicionais e terão prioridade sobre
-qualquer suposição minha em caso de divergência).
+Mandatory categories A–J from the brief, with cases derived directly from
+the manual's own examples whenever available (these sequences and results
+ALREADY ARE the official reference — when the user provides results from
+physical hardware, these will be treated as additional fixtures and will
+take priority over any assumption of mine in case of divergence).
 
-## 12. Escopo desta primeira entrega (transparência, não é "100% compatível")
+## 12. Scope of this first delivery (transparency, not "100% compatible")
 
-Implementado e testado nesta rodada: pilha RPN completa, aritmética, percentuais,
-TVM (caso sem período fracionário), amortização, juros simples, NPV/IRR,
-depreciação (fórmulas de tecla), calendário (actual + 30/360), estatística
-completa, registradores/STO/RCL, programação básica (GTO, R/S, rótulos, testes
-condicionais, expansão de memória).
+Implemented and tested in this round: full RPN stack, arithmetic, percentages,
+TVM (case without a fractional period), amortization, simple interest, NPV/IRR,
+depreciation (keystroke formulas), calendar (actual + 30/360), full
+statistics, registers/STO/RCL, basic programming (GTO, R/S, labels,
+conditional tests, memory expansion).
 
-Explicitamente **NOT IMPLEMENTED**: modo ENG (não existe no hardware alvo),
-bonds com cupom não-semestral, MIRR (não é tecla nativa do 12C, é exemplo de
-"solutions"), separador decimal vírgula/ponto configurável, `f CLx` segurado
-mostrando mantissa (baixa prioridade de UI).
+Explicitly **NOT IMPLEMENTED**: ENG mode (does not exist on the target
+hardware), bonds with a non-semiannual coupon, MIRR (not a native 12C key,
+it is a "solutions" example), configurable comma/period decimal separator,
+`f CLx` held down showing the mantissa (low UI priority).
 
-Explicitamente **NOT VERIFIED contra hardware físico**: qualquer resultado
-numérico até que o usuário forneça saídas de uma HP-12C real para comparação —
-os testes atuais validam contra as fórmulas e exemplos do próprio manual, o que
-é uma aferição documental, não uma aferição de hardware.
+Explicitly **NOT VERIFIED against physical hardware**: any numeric result
+until the user provides outputs from a real HP-12C for comparison —
+the current tests validate against the manual's own formulas and examples,
+which is a documentary check, not a hardware check.
